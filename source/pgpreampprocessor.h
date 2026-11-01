@@ -52,7 +52,8 @@ private:
     std::array<FilterState, 2> mLowFilterState {};
     std::array<FilterState, 2> mMidFilterState {};
     std::array<FilterState, 2> mHighFilterState {};
+    std::array<double, 2> mPreviousSaturationInput {};
+    std::array<bool, 2> mSaturationInitialized {};
 };
 
 } // namespace Steinberg
-

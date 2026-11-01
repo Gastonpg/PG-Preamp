@@ -73,6 +73,12 @@ BiquadCoefficients makeHighShelf(double sampleRate, double frequency, double gai
     return {b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0};
 }
 
+double logCosh(double value)
+{
+    const double magnitude = std::abs(value);
+    return magnitude + std::log1p(std::exp(-2.0 * magnitude)) - std::log(2.0);
+}
+
 } // namespace
 
 PGPreampProcessor::PGPreampProcessor()
@@ -160,6 +166,8 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     mLowFilterState = {};
     mMidFilterState = {};
     mHighFilterState = {};
+    mPreviousSaturationInput = {};
+    mSaturationInitialized = {};
     return kResultOk;
 }
 
@@ -243,8 +251,26 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                 continue;
 
             const double driven = static_cast<double>(source[sample]) * mCurrentDriveGain;
-            double processed = (std::tanh(driven + bias) - biasOutput) /
-                               (smallSignalSlope * mCurrentDriveGain);
+            const double directSaturation = (std::tanh(driven + bias) - biasOutput) /
+                                            (smallSignalSlope * mCurrentDriveGain);
+            double processed = directSaturation;
+            if (mSaturationInitialized[channel])
+            {
+                const double previous = mPreviousSaturationInput[channel];
+                const double delta = driven - previous;
+                if (std::abs(delta) > 1.0e-5)
+                {
+                    const double antiderivative = (logCosh(driven + bias) - logCosh(bias) -
+                                                   driven * biasOutput) / smallSignalSlope;
+                    const double previousAntiderivative =
+                        (logCosh(previous + bias) - logCosh(bias) - previous * biasOutput) /
+                        smallSignalSlope;
+                    processed = (antiderivative - previousAntiderivative) /
+                                (delta * mCurrentDriveGain);
+                }
+            }
+            mPreviousSaturationInput[channel] = driven;
+            mSaturationInitialized[channel] = true;
 
             auto applyFilter = [](double value, const BiquadCoefficients& coefficients,
                                   FilterState& state)
@@ -271,4 +297,3 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
 }
 
 } // namespace Steinberg
-
