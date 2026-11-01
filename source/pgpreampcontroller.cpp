@@ -29,6 +29,9 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
         STR16("Class A Stage"), kPGPreampClassAId, nullptr, 0.0, 1.0, 0.0, 1));
     parameters.addParameter(new Vst::RangeParameter(
         STR16("Iron Transformers"), kPGPreampIronId, nullptr, 0.0, 1.0, 0.0, 1));
+    parameters.addParameter(new Vst::RangeParameter(
+        STR16("VU Meter"), kPGPreampVuMeterId, STR16("VU"), -20.0, 3.0, -20.0,
+        0, Vst::ParameterInfo::kIsReadOnly));
 
     return kResultOk;
 }

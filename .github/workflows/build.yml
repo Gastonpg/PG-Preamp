@@ -41,4 +41,3 @@ jobs:
           name: PG-Preamp-Windows-x64
           path: ${{ steps.package.outputs.plugin-path }}
           if-no-files-found: error
-

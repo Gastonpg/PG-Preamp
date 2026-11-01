@@ -13,7 +13,8 @@ enum PGPreampParams : Vst::ParamID
     kPGPreampMidId = 103,
     kPGPreampHighId = 104,
     kPGPreampClassAId = 105,
-    kPGPreampIronId = 106
+    kPGPreampIronId = 106,
+    kPGPreampVuMeterId = 107
 };
 
 // Unique IDs for PG Preamp processor and controller.

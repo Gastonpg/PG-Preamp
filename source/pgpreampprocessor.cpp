@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace Steinberg {
 namespace {
@@ -221,6 +222,8 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     mInputTransformerMagnetization = {};
     mOutputTransformerFlux = {};
     mOutputTransformerMagnetization = {};
+    mVuRms = 0.0;
+    mVuNormalized = 0.0;
     return kResultOk;
 }
 
@@ -299,6 +302,8 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
     const double bias = 0.18;
     const double biasOutput = std::tanh(bias);
     const double smallSignalSlope = 1.0 - biasOutput * biasOutput;
+    double outputPowerSum = 0.0;
+    std::uint64_t outputSampleCount = 0;
     for (int32 sample = 0; sample < data.numSamples; ++sample)
     {
         mCurrentDriveGain += mSmoothingCoefficient * (mTargetDriveGain - mCurrentDriveGain);
@@ -371,8 +376,33 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                 mOutputTransformerMagnetization[channel], 0.0012, mSampleRate);
             if (mCurrentIronAmount > 1.0e-6)
                 processed += mCurrentIronAmount * (transformerOutput - processed);
-            destination[sample] = static_cast<float>(processed * mCurrentOutputGain);
+            const double outputSample = processed * mCurrentOutputGain;
+            destination[sample] = static_cast<float>(outputSample);
+            outputPowerSum += outputSample * outputSample;
+            ++outputSampleCount;
         }
+    }
+
+    if (outputSampleCount > 0)
+    {
+        const double blockRms = std::sqrt(outputPowerSum / static_cast<double>(outputSampleCount));
+        const double timeConstant = blockRms > mVuRms ? 0.300 : 0.450;
+        const double meterSmoothing = 1.0 - std::exp(
+            -static_cast<double>(data.numSamples) / (timeConstant * mSampleRate));
+        mVuRms += meterSmoothing * (blockRms - mVuRms);
+
+        // Calibrate 0 VU to -18 dBFS RMS, with a readable -20 to +3 VU sweep.
+        const double dbfs = mVuRms > 1.0e-8 ? 20.0 * std::log10(mVuRms) : -160.0;
+        const double vu = dbfs + 18.0;
+        mVuNormalized = std::clamp((vu + 20.0) / 23.0, 0.0, 1.0);
+    }
+
+    if (data.outputParameterChanges)
+    {
+        int32 queueIndex = 0;
+        if (auto* meterQueue = data.outputParameterChanges->addParameterData(
+                kPGPreampVuMeterId, queueIndex))
+            meterQueue->addPoint(data.numSamples - 1, mVuNormalized, queueIndex);
     }
 
     output.silenceFlags = input.silenceFlags;

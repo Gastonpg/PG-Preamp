@@ -17,18 +17,24 @@ smtg_add_vst3plugin(PGPreamp
     source/pgpreampcontroller.cpp
     source/pgpreampentry.cpp
     resource/pgpreamp.uidesc
-    resource/knob_sheet.png
-    resource/rack_panel.png
-    resource/stage_switch.png
+    resource/gemini-knob-sheet-v2.png
+    resource/gemini-panel-final.png
+    resource/gemini-switch-sheet.png
+    resource/gemini-vu-face.png
+    resource/gemini-vu-sheet.png
+    resource/gemini-logo.png
 )
 
 smtg_target_configure_version_file(PGPreamp)
 smtg_target_add_plugin_resources(PGPreamp
     RESOURCES
     resource/pgpreamp.uidesc
-    resource/knob_sheet.png
-    resource/rack_panel.png
-    resource/stage_switch.png
+    resource/gemini-knob-sheet-v2.png
+    resource/gemini-panel-final.png
+    resource/gemini-switch-sheet.png
+    resource/gemini-vu-face.png
+    resource/gemini-vu-sheet.png
+    resource/gemini-logo.png
 )
 
 target_compile_features(PGPreamp PRIVATE cxx_std_17)

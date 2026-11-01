@@ -33,6 +33,8 @@ private:
     double mHighNormalized {0.5};
     double mClassAEnabled {0.0};
     double mIronEnabled {0.0};
+    double mVuRms {0.0};
+    double mVuNormalized {0.0};
     double mTargetDriveGain {1.0};
     double mTargetOutputGain {1.0};
     double mCurrentDriveGain {1.0};

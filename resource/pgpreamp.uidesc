@@ -2,117 +2,125 @@
 <vstgui-ui-description version="1">
     <fonts/>
     <colors>
-        <color name="Panel" rgba="#242628ff"/>
-        <color name="Accent" rgba="#d6a34fff"/>
-        <color name="Text" rgba="#eee9dcff"/>
-        <color name="MutedText" rgba="#aaa394ff"/>
-        <color name="Field" rgba="#171819ff"/>
-        <color name="Outline" rgba="#766d5cff"/>
+        <color name="Panel" rgba="#293746ff"/>
+        <color name="Accent" rgba="#e3bd78ff"/>
+        <color name="Text" rgba="#f3eee2ff"/>
+        <color name="MutedText" rgba="#c6ccd0ff"/>
+        <color name="Field" rgba="#1d2934ff"/>
+        <color name="Outline" rgba="#a89169ff"/>
     </colors>
     <template class="CViewContainer" name="view" origin="0, 0" size="860, 420"
               minSize="860, 420" maxSize="860, 420" background-color="Panel"
               background-color-draw-style="filled" mouse-enabled="true" transparent="false">
         <view class="CView" origin="0, 0" size="860, 420" bitmap="RackPanel"
               mouse-enabled="false" transparent="false"/>
-        <view class="CTextLabel" origin="52, 34" size="210, 24" title="PG  /  PREAMP"
+
+        <view class="CTextLabel" origin="42, 25" size="330, 30" title="PG  /  PREAMP"
               font="~ NormalFontVeryBig" font-antialias="true" font-color="Text"
               text-alignment="left" style-no-frame="true" transparent="true"/>
-        <view class="CTextLabel" origin="504, 39" size="300, 18" title="ANALOG-INSPIRED CHANNEL STRIP"
+        <view class="CTextLabel" origin="44, 58" size="370, 18" title="ANALOG CHANNEL  ·  CLASS-A COLOR"
               font="~ NormalFontSmall" font-antialias="true" font-color="Accent"
-              text-alignment="right" style-no-frame="true" transparent="true"/>
+              text-alignment="left" style-no-frame="true" transparent="true"/>
 
-            <view class="CTextLabel" origin="49, 105" size="142, 20" title="INPUT GAIN"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="center" style-no-frame="true" transparent="true"/>
-            <view class="CTextLabel" origin="204, 105" size="142, 20" title="LOW EQ  ·  110 Hz"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="center" style-no-frame="true" transparent="true"/>
-            <view class="CTextLabel" origin="359, 105" size="142, 20" title="MID EQ  ·  1.6 kHz"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="center" style-no-frame="true" transparent="true"/>
-            <view class="CTextLabel" origin="514, 105" size="142, 20" title="HIGH EQ  ·  12 kHz"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="center" style-no-frame="true" transparent="true"/>
-            <view class="CTextLabel" origin="669, 105" size="142, 20" title="OUTPUT LEVEL"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CView" origin="680, 2" size="172, 62" bitmap="GeminiLogo"
+              mouse-enabled="false" transparent="true"/>
+        <view class="CView" origin="620, 64" size="200, 100" bitmap="VuFace"
+              mouse-enabled="false" transparent="true"/>
+        <view class="CAnimKnob" control-tag="VuMeter" bitmap="VuSheet"
+              origin="620, 64" size="200, 100" height-of-one-image="110" sub-pixmaps="41"
+              angle-start="225" angle-range="90" min-value="0" max-value="1"
+              default-value="0" mouse-enabled="false" transparent="true"/>
 
-            <view class="CAnimKnob" control-tag="Drive" bitmap="KnobSheet"
-                  origin="80, 191" size="80, 80" height-of-one-image="72" sub-pixmaps="61"
-                  angle-start="135" angle-range="270" min-value="0" max-value="1"
-                  default-value="0" mouse-enabled="true" transparent="true"/>
-            <view class="CAnimKnob" control-tag="Low" bitmap="KnobSheet"
-                  origin="235, 191" size="80, 80" height-of-one-image="72" sub-pixmaps="61"
-                  angle-start="135" angle-range="270" min-value="0" max-value="1"
-                  default-value="0.5" mouse-enabled="true" transparent="true"/>
-            <view class="CAnimKnob" control-tag="Mid" bitmap="KnobSheet"
-                  origin="390, 191" size="80, 80" height-of-one-image="72" sub-pixmaps="61"
-                  angle-start="135" angle-range="270" min-value="0" max-value="1"
-                  default-value="0.5" mouse-enabled="true" transparent="true"/>
-            <view class="CAnimKnob" control-tag="High" bitmap="KnobSheet"
-                  origin="545, 191" size="80, 80" height-of-one-image="72" sub-pixmaps="61"
-                  angle-start="135" angle-range="270" min-value="0" max-value="1"
-                  default-value="0.5" mouse-enabled="true" transparent="true"/>
-            <view class="CAnimKnob" control-tag="Output" bitmap="KnobSheet"
-                  origin="700, 191" size="80, 80" height-of-one-image="72" sub-pixmaps="61"
-                  angle-start="135" angle-range="270" min-value="0" max-value="1"
-                  default-value="0.666667" mouse-enabled="true" transparent="true"/>
+        <view class="CTextLabel" origin="37, 286" size="136, 18" title="GAIN"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="199, 286" size="136, 18" title="LOW EQ  ·  110 Hz"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="361, 286" size="136, 18" title="MID EQ  ·  1.6 kHz"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="523, 286" size="136, 18" title="HIGH EQ  ·  12 kHz"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="685, 286" size="136, 18" title="OUTPUT"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
 
-            <view class="CTextEdit" control-tag="Drive" origin="74, 293" size="92, 28"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Field" frame-color="Outline" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
-                  min-value="0" max-value="1" default-value="0" transparent="false"/>
-            <view class="CTextEdit" control-tag="Low" origin="229, 293" size="92, 28"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Field" frame-color="Outline" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
-                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
-            <view class="CTextEdit" control-tag="Mid" origin="384, 293" size="92, 28"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Field" frame-color="Outline" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
-                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
-            <view class="CTextEdit" control-tag="High" origin="539, 293" size="92, 28"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Field" frame-color="Outline" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
-                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
-            <view class="CTextEdit" control-tag="Output" origin="694, 293" size="92, 28"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Field" frame-color="Outline" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
-                  min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
+        <view class="CAnimKnob" control-tag="Drive" bitmap="KnobSheet"
+              origin="66, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              default-value="0" mouse-enabled="true" transparent="true"/>
+        <view class="CAnimKnob" control-tag="Low" bitmap="KnobSheet"
+              origin="228, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              default-value="0.5" mouse-enabled="true" transparent="true"/>
+        <view class="CAnimKnob" control-tag="Mid" bitmap="KnobSheet"
+              origin="390, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              default-value="0.5" mouse-enabled="true" transparent="true"/>
+        <view class="CAnimKnob" control-tag="High" bitmap="KnobSheet"
+              origin="552, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              default-value="0.5" mouse-enabled="true" transparent="true"/>
+        <view class="CAnimKnob" control-tag="Output" bitmap="KnobSheet"
+              origin="714, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              default-value="0.666667" mouse-enabled="true" transparent="true"/>
 
-        <view class="CTextLabel" origin="324, 334" size="62, 16" title="A STAGE"
-              font="~ NormalFontSmall" font-antialias="true" font-color="Text"
-              text-alignment="right" style-no-frame="true" transparent="true"/>
+        <view class="CTextEdit" control-tag="Drive" origin="59, 306" size="92, 26"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+              min-value="0" max-value="1" default-value="0" transparent="false"/>
+        <view class="CTextEdit" control-tag="Low" origin="221, 306" size="92, 26"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+              min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+        <view class="CTextEdit" control-tag="Mid" origin="383, 306" size="92, 26"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+              min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+        <view class="CTextEdit" control-tag="High" origin="545, 306" size="92, 26"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+              min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+        <view class="CTextEdit" control-tag="Output" origin="707, 306" size="92, 26"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+              min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
+
         <view class="COnOffButton" control-tag="ClassA" bitmap="StageSwitch"
-              origin="390, 331" size="40, 22" height-of-one-image="22"
+              origin="388, 336" size="44, 52" height-of-one-image="76"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional BJT stage around a Class-A bias point" mouse-enabled="true"/>
-        <view class="CTextLabel" origin="448, 334" size="38, 16" title="IRON"
+        <view class="CTextLabel" origin="355, 389" size="110, 16" title="A STAGE"
               font="~ NormalFontSmall" font-antialias="true" font-color="Text"
-              text-alignment="right" style-no-frame="true" transparent="true"/>
+              text-alignment="center" style-no-frame="true" transparent="true"/>
         <view class="COnOffButton" control-tag="Iron" bitmap="StageSwitch"
-              origin="489, 331" size="40, 22" height-of-one-image="22"
+              origin="503, 336" size="44, 52" height-of-one-image="76"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional low-frequency transformer-core saturation model" mouse-enabled="true"/>
-
-        <view class="CTextLabel" origin="48, 370" size="764, 16"
-              title="Double-click readouts to type  ·  A STAGE and IRON are optional."
-              font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
+        <view class="CTextLabel" origin="486, 389" size="78, 16" title="IRON"
+              font="~ NormalFontSmall" font-antialias="true" font-color="Text"
               text-alignment="center" style-no-frame="true" transparent="true"/>
     </template>
     <bitmaps>
-        <bitmap name="KnobSheet" path="knob_sheet.png"/>
-        <bitmap name="RackPanel" path="rack_panel.png"/>
-        <bitmap name="StageSwitch" path="stage_switch.png"/>
+        <bitmap name="KnobSheet" path="gemini-knob-sheet-v2.png"/>
+        <bitmap name="RackPanel" path="gemini-panel-final.png"/>
+        <bitmap name="StageSwitch" path="gemini-switch-sheet.png"/>
+        <bitmap name="VuFace" path="gemini-vu-face.png"/>
+        <bitmap name="VuSheet" path="gemini-vu-sheet.png"/>
+        <bitmap name="GeminiLogo" path="gemini-logo.png"/>
     </bitmaps>
     <control-tags>
         <control-tag name="Drive" tag="100"/>
@@ -122,5 +130,6 @@
         <control-tag name="High" tag="104"/>
         <control-tag name="ClassA" tag="105"/>
         <control-tag name="Iron" tag="106"/>
+        <control-tag name="VuMeter" tag="107"/>
     </control-tags>
 </vstgui-ui-description>
