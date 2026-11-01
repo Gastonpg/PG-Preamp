@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(PGPreamp
-    VERSION 0.3.0
-    DESCRIPTION "PG Preamp - warm valve-style VST3 audio effect"
+    VERSION 0.4.0
+    DESCRIPTION "PG Preamp - 1073-inspired VST3 preamp and equalizer"
 )
 
 add_subdirectory(external)
@@ -17,12 +17,14 @@ smtg_add_vst3plugin(PGPreamp
     source/pgpreampcontroller.cpp
     source/pgpreampentry.cpp
     resource/pgpreamp.uidesc
+    resource/knob_sheet.png
 )
 
 smtg_target_configure_version_file(PGPreamp)
 smtg_target_add_plugin_resources(PGPreamp
     RESOURCES
     resource/pgpreamp.uidesc
+    resource/knob_sheet.png
 )
 
 target_compile_features(PGPreamp PRIVATE cxx_std_17)

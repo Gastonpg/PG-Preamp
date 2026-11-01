@@ -2,13 +2,13 @@
 
 PG Preamp is an original PG Audio VST3 project.
 
-## Current milestone: v0.3 warm preamp with a basic editor
+## Current milestone: v0.4 1073-inspired preamp channel
 
 - Native VST3 effect structure.
 - Stereo input and output.
-- Warm, asymmetric valve-style soft clipping stage.
-- Basic editor with Drive and Output sliders and editable dB fields.
-- Automatable Drive and Output controls with host project-state saving.
+- Warm, asymmetric preamp saturation with a 3-band fixed-frequency EQ inspired by the Neve 1073 channel strip.
+- A dark editor with black rotary knobs and white position markers.
+- Automatable Drive, Low, Mid, High, and Output controls with host project-state saving.
 - Parameter smoothing to reduce clicks when controls move.
 - Windows x64 build through GitHub Actions.
 - No local compiler or SDK installation required for the cloud build.
@@ -21,9 +21,9 @@ The downloaded artifact contains the `.vst3` bundle directly. Extract it once an
 
 ## Roadmap
 
-1. Confirm the editor opens and the controls work in FL Studio.
+1. Confirm the editor and controls work in FL Studio.
 2. Measure distortion and aliasing across common sample rates.
-3. Refine the valve stage and add tone shaping only after listening tests.
+3. Refine the preamp stage and tone curves after listening tests.
 
 This project is not an exact emulation of any commercial hardware.
 

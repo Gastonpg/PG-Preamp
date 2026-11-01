@@ -8,7 +8,10 @@ namespace Steinberg {
 enum PGPreampParams : Vst::ParamID
 {
     kPGPreampDriveId = 100,
-    kPGPreampOutputId = 101
+    kPGPreampOutputId = 101,
+    kPGPreampLowId = 102,
+    kPGPreampMidId = 103,
+    kPGPreampHighId = 104
 };
 
 // Unique IDs for PG Preamp processor and controller.

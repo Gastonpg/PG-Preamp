@@ -7,56 +7,105 @@
         <color name="Accent" rgba="#e09a42ff"/>
         <color name="Text" rgba="#f4f1ebff"/>
         <color name="MutedText" rgba="#aaa69fff"/>
-        <color name="Track" rgba="#3a3e45ff"/>
+        <color name="Field" rgba="#101214ff"/>
+        <color name="Outline" rgba="#555b62ff"/>
     </colors>
-    <template class="CViewContainer" name="view" origin="0, 0" size="480, 300"
-              minSize="480, 300" maxSize="480, 300" background-color="Panel"
+    <template class="CViewContainer" name="view" origin="0, 0" size="620, 340"
+              minSize="620, 340" maxSize="620, 340" background-color="Panel"
               background-color-draw-style="filled" mouse-enabled="true" transparent="false">
-        <view class="CTextLabel" origin="28, 20" size="424, 34" title="PG PREAMP"
+        <view class="CTextLabel" origin="26, 20" size="568, 34" title="PG PREAMP"
               font="~ NormalFontVeryBig" font-antialias="true" font-color="Text"
               text-alignment="left" style-no-frame="true" transparent="true"/>
-        <view class="CTextLabel" origin="30, 58" size="420, 20" title="WARM VALVE STAGE"
+        <view class="CTextLabel" origin="28, 58" size="560, 18" title="1073 INSPIRED  |  THREE-BAND TONE"
               font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
               text-alignment="left" style-no-frame="true" transparent="true"/>
 
-        <view class="CViewContainer" origin="24, 94" size="432, 164"
+        <view class="CViewContainer" origin="16, 96" size="588, 202"
               background-color="PanelRaised" background-color-draw-style="filled"
-              mouse-enabled="false" transparent="false">
-            <view class="CTextLabel" origin="20, 18" size="180, 22" title="DRIVE"
+              mouse-enabled="true" transparent="false">
+            <view class="CTextLabel" origin="21, 14" size="114, 20" title="DRIVE"
                   font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="left" style-no-frame="true" transparent="true"/>
-            <view class="CSlider" control-tag="Drive" origin="20, 46" size="292, 30"
-                  orientation="horizontal" mode="free click" draw-back="true"
-                  draw-back-color="Track" draw-value="true" draw-value-color="Accent"
-                  draw-frame="false" min-value="0" max-value="1" default-value="0"
-                  wheel-inc-value="0.01" mouse-enabled="true" transparent="false"/>
-            <view class="CTextEdit" control-tag="Drive" origin="326, 46" size="82, 30"
+                  text-alignment="center" style-no-frame="true" transparent="true"/>
+            <view class="CTextLabel" origin="138, 14" size="114, 20" title="LOW · 110 Hz"
                   font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Panel" frame-color="Track" frame-width="1"
-                  text-alignment="center" text-inset="4, 0" value-precision="1"
-                  min-value="0" max-value="1" default-value="0" transparent="false"/>
+                  text-alignment="center" style-no-frame="true" transparent="true"/>
+            <view class="CTextLabel" origin="255, 14" size="114, 20" title="MID · 1.6 kHz"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  text-alignment="center" style-no-frame="true" transparent="true"/>
+            <view class="CTextLabel" origin="372, 14" size="114, 20" title="HIGH · 12 kHz"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  text-alignment="center" style-no-frame="true" transparent="true"/>
+            <view class="CTextLabel" origin="489, 14" size="114, 20" title="OUTPUT"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  text-alignment="center" style-no-frame="true" transparent="true"/>
 
-            <view class="CTextLabel" origin="20, 94" size="180, 22" title="OUTPUT"
+            <view class="CAnimKnob" control-tag="Drive" bitmap="KnobSheet"
+                  origin="42, 40" size="72, 72" height-of-one-image="72" sub-pixmaps="61"
+                  angle-start="135" angle-range="270" min-value="0" max-value="1"
+                  default-value="0" mouse-enabled="true" transparent="true"/>
+            <view class="CAnimKnob" control-tag="Low" bitmap="KnobSheet"
+                  origin="159, 40" size="72, 72" height-of-one-image="72" sub-pixmaps="61"
+                  angle-start="135" angle-range="270" min-value="0" max-value="1"
+                  default-value="0.5" mouse-enabled="true" transparent="true"/>
+            <view class="CAnimKnob" control-tag="Mid" bitmap="KnobSheet"
+                  origin="276, 40" size="72, 72" height-of-one-image="72" sub-pixmaps="61"
+                  angle-start="135" angle-range="270" min-value="0" max-value="1"
+                  default-value="0.5" mouse-enabled="true" transparent="true"/>
+            <view class="CAnimKnob" control-tag="High" bitmap="KnobSheet"
+                  origin="393, 40" size="72, 72" height-of-one-image="72" sub-pixmaps="61"
+                  angle-start="135" angle-range="270" min-value="0" max-value="1"
+                  default-value="0.5" mouse-enabled="true" transparent="true"/>
+            <view class="CAnimKnob" control-tag="Output" bitmap="KnobSheet"
+                  origin="510, 40" size="72, 72" height-of-one-image="72" sub-pixmaps="61"
+                  angle-start="135" angle-range="270" min-value="0" max-value="1"
+                  default-value="0.666667" mouse-enabled="true" transparent="true"/>
+
+            <view class="CTextEdit" control-tag="Drive" origin="32, 128" size="92, 30"
                   font="~ NormalFont" font-antialias="true" font-color="Text"
-                  text-alignment="left" style-no-frame="true" transparent="true"/>
-            <view class="CSlider" control-tag="Output" origin="20, 122" size="292, 30"
-                  orientation="horizontal" mode="free click" draw-back="true"
-                  draw-back-color="Track" draw-value="true" draw-value-color="Accent"
-                  draw-frame="false" min-value="0" max-value="1" default-value="0.666667"
-                  wheel-inc-value="0.01" mouse-enabled="true" transparent="false"/>
-            <view class="CTextEdit" control-tag="Output" origin="326, 122" size="82, 30"
-                  font="~ NormalFont" font-antialias="true" font-color="Text"
-                  back-color="Panel" frame-color="Track" frame-width="1"
+                  back-color="Field" frame-color="Outline" frame-width="1"
                   text-alignment="center" text-inset="4, 0" value-precision="1"
+                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+                  min-value="0" max-value="1" default-value="0" transparent="false"/>
+            <view class="CTextEdit" control-tag="Low" origin="149, 128" size="92, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Field" frame-color="Outline" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+            <view class="CTextEdit" control-tag="Mid" origin="266, 128" size="92, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Field" frame-color="Outline" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+            <view class="CTextEdit" control-tag="High" origin="383, 128" size="92, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Field" frame-color="Outline" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
+                  min-value="0" max-value="1" default-value="0.5" transparent="false"/>
+            <view class="CTextEdit" control-tag="Output" origin="500, 128" size="92, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Field" frame-color="Outline" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
                   min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
         </view>
-        <view class="CTextLabel" origin="28, 270" size="424, 16" title="Drag a slider or enter a value."
+
+        <view class="CTextLabel" origin="26, 312" size="568, 16"
+              title="Drag a knob to adjust. Double-click a value to type."
               font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
               text-alignment="left" style-no-frame="true" transparent="true"/>
     </template>
+    <bitmaps>
+        <bitmap name="KnobSheet" path="knob_sheet.png"/>
+    </bitmaps>
     <control-tags>
         <control-tag name="Drive" tag="100"/>
         <control-tag name="Output" tag="101"/>
+        <control-tag name="Low" tag="102"/>
+        <control-tag name="Mid" tag="103"/>
+        <control-tag name="High" tag="104"/>
     </control-tags>
 </vstgui-ui-description>
 

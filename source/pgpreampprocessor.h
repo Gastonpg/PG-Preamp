@@ -2,6 +2,8 @@
 
 #include "public.sdk/source/vst/vstaudioeffect.h"
 
+#include <array>
+
 namespace Steinberg {
 
 class PGPreampProcessor : public Vst::AudioEffect
@@ -23,12 +25,33 @@ public:
 
 private:
     double mSmoothingCoefficient {0.001};
+    double mSampleRate {44100.0};
     double mDriveNormalized {0.0};
     double mOutputNormalized {2.0 / 3.0};
+    double mLowNormalized {0.5};
+    double mMidNormalized {0.5};
+    double mHighNormalized {0.5};
     double mTargetDriveGain {1.0};
     double mTargetOutputGain {1.0};
     double mCurrentDriveGain {1.0};
     double mCurrentOutputGain {1.0};
+    double mTargetLowDb {0.0};
+    double mTargetMidDb {0.0};
+    double mTargetHighDb {0.0};
+    double mCurrentLowDb {0.0};
+    double mCurrentMidDb {0.0};
+    double mCurrentHighDb {0.0};
+
+    struct FilterState
+    {
+        double x1 {0.0};
+        double x2 {0.0};
+        double y1 {0.0};
+        double y2 {0.0};
+    };
+    std::array<FilterState, 2> mLowFilterState {};
+    std::array<FilterState, 2> mMidFilterState {};
+    std::array<FilterState, 2> mHighFilterState {};
 };
 
 } // namespace Steinberg

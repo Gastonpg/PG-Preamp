@@ -19,6 +19,12 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
         STR16("Drive"), kPGPreampDriveId, STR16("dB"), 0.0, 24.0, 0.0));
     parameters.addParameter(new Vst::RangeParameter(
         STR16("Output"), kPGPreampOutputId, STR16("dB"), -24.0, 12.0, 0.0));
+    parameters.addParameter(new Vst::RangeParameter(
+        STR16("Low"), kPGPreampLowId, STR16("dB"), -16.0, 16.0, 0.0));
+    parameters.addParameter(new Vst::RangeParameter(
+        STR16("Mid"), kPGPreampMidId, STR16("dB"), -18.0, 18.0, 0.0));
+    parameters.addParameter(new Vst::RangeParameter(
+        STR16("High"), kPGPreampHighId, STR16("dB"), -16.0, 16.0, 0.0));
 
     return kResultOk;
 }
@@ -34,10 +40,22 @@ tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
     if (!streamer.readFloat(drive) || !streamer.readFloat(output))
         return kResultFalse;
 
+    float low = 0.5f;
+    float mid = 0.5f;
+    float high = 0.5f;
+    if (!streamer.readFloat(low) || !streamer.readFloat(mid) || !streamer.readFloat(high))
+        low = mid = high = 0.5f;
+
     if (auto* parameter = getParameterObject(kPGPreampDriveId))
         parameter->setNormalized(drive);
     if (auto* parameter = getParameterObject(kPGPreampOutputId))
         parameter->setNormalized(output);
+    if (auto* parameter = getParameterObject(kPGPreampLowId))
+        parameter->setNormalized(low);
+    if (auto* parameter = getParameterObject(kPGPreampMidId))
+        parameter->setNormalized(mid);
+    if (auto* parameter = getParameterObject(kPGPreampHighId))
+        parameter->setNormalized(high);
 
     return kResultOk;
 }
