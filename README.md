@@ -17,7 +17,7 @@ PG Preamp is an original PG Audio VST3 project.
 
 Open the **Actions** tab and run **Build PG Preamp VST3** using **Run workflow**, or push a commit to trigger a build. When it succeeds, download the `PG-Preamp-Windows-x64` artifact from that workflow run.
 
-The ZIP contains the VST3 bundle. Extract it and install the `.vst3` folder in the VST3 location supported by the DAW.
+The downloaded artifact contains the `.vst3` bundle directly. Extract it once and install that folder in the VST3 location supported by the DAW.
 
 ## Roadmap
 

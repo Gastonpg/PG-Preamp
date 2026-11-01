@@ -24,7 +24,8 @@ jobs:
       - name: Compile
         run: cmake --build build --config Release --target PGPreamp
 
-      - name: Package VST3
+      - name: Locate VST3 bundle
+        id: package
         shell: pwsh
         run: |
           $plugin = Get-ChildItem -Path build -Recurse -Directory -Filter "*.vst3" | Select-Object -First 1
@@ -32,12 +33,12 @@ jobs:
             Write-Error "No se encontró el paquete .vst3 después de compilar."
             exit 1
           }
-          Compress-Archive -Path $plugin.FullName -DestinationPath "$PWD/PG-Preamp-Windows-x64.zip" -Force
+          "plugin-path=$($plugin.FullName)" >> $env:GITHUB_OUTPUT
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: PG-Preamp-Windows-x64
-          path: PG-Preamp-Windows-x64.zip
+          path: ${{ steps.package.outputs.plugin-path }}
           if-no-files-found: error
 
