@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+    <fonts/>
+    <colors>
+        <color name="Panel" rgba="#17191dff"/>
+        <color name="PanelRaised" rgba="#23262cff"/>
+        <color name="Accent" rgba="#e09a42ff"/>
+        <color name="Text" rgba="#f4f1ebff"/>
+        <color name="MutedText" rgba="#aaa69fff"/>
+        <color name="Track" rgba="#3a3e45ff"/>
+    </colors>
+    <template class="CViewContainer" name="view" origin="0, 0" size="480, 300"
+              minSize="480, 300" maxSize="480, 300" background-color="Panel"
+              background-color-draw-style="filled" mouse-enabled="true" transparent="false">
+        <view class="CTextLabel" origin="28, 20" size="424, 34" title="PG PREAMP"
+              font="~ NormalFontVeryBig" font-antialias="true" font-color="Text"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="30, 58" size="420, 20" title="WARM VALVE STAGE"
+              font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+
+        <view class="CViewContainer" origin="24, 94" size="432, 164"
+              background-color="PanelRaised" background-color-draw-style="filled"
+              mouse-enabled="false" transparent="false">
+            <view class="CTextLabel" origin="20, 18" size="180, 22" title="DRIVE"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  text-alignment="left" style-no-frame="true" transparent="true"/>
+            <view class="CSlider" control-tag="Drive" origin="20, 46" size="292, 30"
+                  orientation="horizontal" mode="free click" draw-back="true"
+                  draw-back-color="Track" draw-value="true" draw-value-color="Accent"
+                  draw-frame="false" min-value="0" max-value="1" default-value="0"
+                  wheel-inc-value="0.01" mouse-enabled="true" transparent="false"/>
+            <view class="CTextEdit" control-tag="Drive" origin="326, 46" size="82, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Panel" frame-color="Track" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  min-value="0" max-value="1" default-value="0" transparent="false"/>
+
+            <view class="CTextLabel" origin="20, 94" size="180, 22" title="OUTPUT"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  text-alignment="left" style-no-frame="true" transparent="true"/>
+            <view class="CSlider" control-tag="Output" origin="20, 122" size="292, 30"
+                  orientation="horizontal" mode="free click" draw-back="true"
+                  draw-back-color="Track" draw-value="true" draw-value-color="Accent"
+                  draw-frame="false" min-value="0" max-value="1" default-value="0.666667"
+                  wheel-inc-value="0.01" mouse-enabled="true" transparent="false"/>
+            <view class="CTextEdit" control-tag="Output" origin="326, 122" size="82, 30"
+                  font="~ NormalFont" font-antialias="true" font-color="Text"
+                  back-color="Panel" frame-color="Track" frame-width="1"
+                  text-alignment="center" text-inset="4, 0" value-precision="1"
+                  min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
+        </view>
+        <view class="CTextLabel" origin="28, 270" size="424, 16" title="Drag a slider or enter a value."
+              font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+    </template>
+    <control-tags>
+        <control-tag name="Drive" tag="100"/>
+        <control-tag name="Output" tag="101"/>
+    </control-tags>
+</vstgui-ui-description>
+

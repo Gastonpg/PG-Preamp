@@ -3,6 +3,9 @@
 
 #include "base/source/fstreamer.h"
 #include "public.sdk/source/vst/vstparameters.h"
+#include "vstgui/plugin-bindings/vst3editor.h"
+
+#include <cstring>
 
 namespace Steinberg {
 
@@ -37,6 +40,13 @@ tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
         parameter->setNormalized(output);
 
     return kResultOk;
+}
+
+IPlugView* PLUGIN_API PGPreampController::createView(FIDString name)
+{
+    if (name && std::strcmp(name, Vst::ViewType::kEditor) == 0)
+        return new VSTGUI::VST3Editor(this, "view", "pgpreamp.uidesc");
+    return nullptr;
 }
 
 } // namespace Steinberg
