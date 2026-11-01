@@ -31,6 +31,8 @@ private:
     double mLowNormalized {0.5};
     double mMidNormalized {0.5};
     double mHighNormalized {0.5};
+    double mClassAEnabled {0.0};
+    double mIronEnabled {0.0};
     double mTargetDriveGain {1.0};
     double mTargetOutputGain {1.0};
     double mCurrentDriveGain {1.0};
@@ -41,6 +43,10 @@ private:
     double mCurrentLowDb {0.0};
     double mCurrentMidDb {0.0};
     double mCurrentHighDb {0.0};
+    double mTargetClassAAmount {0.0};
+    double mTargetIronAmount {0.0};
+    double mCurrentClassAAmount {0.0};
+    double mCurrentIronAmount {0.0};
 
     struct FilterState
     {
@@ -54,6 +60,10 @@ private:
     std::array<FilterState, 2> mHighFilterState {};
     std::array<double, 2> mPreviousSaturationInput {};
     std::array<bool, 2> mSaturationInitialized {};
+    std::array<double, 2> mInputTransformerFlux {};
+    std::array<double, 2> mInputTransformerMagnetization {};
+    std::array<double, 2> mOutputTransformerFlux {};
+    std::array<double, 2> mOutputTransformerMagnetization {};
 };
 
 } // namespace Steinberg

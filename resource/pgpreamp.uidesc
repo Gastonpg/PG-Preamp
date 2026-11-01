@@ -89,14 +89,30 @@
                   style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
                   min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
 
+        <view class="CTextLabel" origin="324, 334" size="62, 16" title="A STAGE"
+              font="~ NormalFontSmall" font-antialias="true" font-color="Text"
+              text-alignment="right" style-no-frame="true" transparent="true"/>
+        <view class="COnOffButton" control-tag="ClassA" bitmap="StageSwitch"
+              origin="390, 331" size="40, 22" height-of-one-image="22"
+              min-value="0" max-value="1" default-value="0"
+              tooltip="Optional BJT stage around a Class-A bias point" mouse-enabled="true"/>
+        <view class="CTextLabel" origin="448, 334" size="38, 16" title="IRON"
+              font="~ NormalFontSmall" font-antialias="true" font-color="Text"
+              text-alignment="right" style-no-frame="true" transparent="true"/>
+        <view class="COnOffButton" control-tag="Iron" bitmap="StageSwitch"
+              origin="489, 331" size="40, 22" height-of-one-image="22"
+              min-value="0" max-value="1" default-value="0"
+              tooltip="Optional low-frequency transformer-core saturation model" mouse-enabled="true"/>
+
         <view class="CTextLabel" origin="48, 370" size="764, 16"
-              title="Turn a control or double-click its readout to enter a value."
+              title="Double-click readouts to type  ·  A STAGE and IRON are optional."
               font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
     </template>
     <bitmaps>
         <bitmap name="KnobSheet" path="knob_sheet.png"/>
         <bitmap name="RackPanel" path="rack_panel.png"/>
+        <bitmap name="StageSwitch" path="stage_switch.png"/>
     </bitmaps>
     <control-tags>
         <control-tag name="Drive" tag="100"/>
@@ -104,5 +120,7 @@
         <control-tag name="Low" tag="102"/>
         <control-tag name="Mid" tag="103"/>
         <control-tag name="High" tag="104"/>
+        <control-tag name="ClassA" tag="105"/>
+        <control-tag name="Iron" tag="106"/>
     </control-tags>
 </vstgui-ui-description>

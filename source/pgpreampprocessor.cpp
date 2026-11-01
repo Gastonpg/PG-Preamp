@@ -79,6 +79,44 @@ double logCosh(double value)
     return magnitude + std::log1p(std::exp(-2.0 * magnitude)) - std::log(2.0);
 }
 
+double processClassABjtStage(double input)
+{
+    // Normalized single-ended BJT stage: exponential junction current with
+    // emitter degeneration, centered at its quiescent operating point.
+    constexpr double effectiveThermalScale = 0.24;
+    constexpr double emitterFeedback = 2.0;
+    constexpr double outputHeadroom = 1.2;
+    const double target = std::clamp(input, -2.0, 2.0) / effectiveThermalScale;
+    double normalizedCurrent = 1.0;
+
+    for (int iteration = 0; iteration < 8; ++iteration)
+    {
+        const double current = std::max(normalizedCurrent, 1.0e-6);
+        const double residual = std::log(current) +
+                                emitterFeedback * (current - 1.0) - target;
+        const double slope = (1.0 / current) + emitterFeedback;
+        normalizedCurrent = std::clamp(current - residual / slope, 1.0e-5, 8.0);
+    }
+
+    const double collectorSwing = (normalizedCurrent - 1.0) *
+                                  effectiveThermalScale * (1.0 + emitterFeedback);
+    return outputHeadroom * std::tanh(collectorSwing / outputHeadroom);
+}
+
+double processTransformerCore(double input, double& flux, double& magnetization,
+                              double fluxLimit, double sampleRate)
+{
+    // Flux is the leaky integral of winding voltage. The saturating B-H curve
+    // gives a low-frequency, level-dependent first approximation of core color.
+    constexpr double lowFrequencyCorner = 8.0;
+    const double leak = std::exp(-2.0 * kPi * lowFrequencyCorner / sampleRate);
+    flux = leak * flux + input / sampleRate;
+    const double currentMagnetization = fluxLimit * std::tanh(flux / fluxLimit);
+    const double output = (currentMagnetization - magnetization) * sampleRate;
+    magnetization = currentMagnetization;
+    return output;
+}
+
 } // namespace
 
 PGPreampProcessor::PGPreampProcessor()
@@ -126,7 +164,9 @@ tresult PLUGIN_API PGPreampProcessor::getState(IBStream* state)
                          streamer.writeFloat(static_cast<float>(mOutputNormalized)) &&
                          streamer.writeFloat(static_cast<float>(mLowNormalized)) &&
                          streamer.writeFloat(static_cast<float>(mMidNormalized)) &&
-                         streamer.writeFloat(static_cast<float>(mHighNormalized));
+                         streamer.writeFloat(static_cast<float>(mHighNormalized)) &&
+                         streamer.writeFloat(static_cast<float>(mClassAEnabled)) &&
+                         streamer.writeFloat(static_cast<float>(mIronEnabled));
     return written ? kResultOk : kResultFalse;
 }
 
@@ -147,11 +187,18 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     if (!streamer.readFloat(low) || !streamer.readFloat(mid) || !streamer.readFloat(high))
         low = mid = high = 0.5f;
 
+    float classA = 0.f;
+    float iron = 0.f;
+    if (!streamer.readFloat(classA) || !streamer.readFloat(iron))
+        classA = iron = 0.f;
+
     mDriveNormalized = std::clamp(static_cast<double>(drive), 0.0, 1.0);
     mOutputNormalized = std::clamp(static_cast<double>(output), 0.0, 1.0);
     mLowNormalized = std::clamp(static_cast<double>(low), 0.0, 1.0);
     mMidNormalized = std::clamp(static_cast<double>(mid), 0.0, 1.0);
     mHighNormalized = std::clamp(static_cast<double>(high), 0.0, 1.0);
+    mClassAEnabled = classA >= 0.5f ? 1.0 : 0.0;
+    mIronEnabled = iron >= 0.5f ? 1.0 : 0.0;
 
     mTargetDriveGain = std::pow(10.0, (24.0 * mDriveNormalized) / 20.0);
     mTargetOutputGain = std::pow(10.0, (-24.0 + 36.0 * mOutputNormalized) / 20.0);
@@ -163,11 +210,17 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     mCurrentLowDb = mTargetLowDb;
     mCurrentMidDb = mTargetMidDb;
     mCurrentHighDb = mTargetHighDb;
+    mTargetClassAAmount = mCurrentClassAAmount = mClassAEnabled;
+    mTargetIronAmount = mCurrentIronAmount = mIronEnabled;
     mLowFilterState = {};
     mMidFilterState = {};
     mHighFilterState = {};
     mPreviousSaturationInput = {};
     mSaturationInitialized = {};
+    mInputTransformerFlux = {};
+    mInputTransformerMagnetization = {};
+    mOutputTransformerFlux = {};
+    mOutputTransformerMagnetization = {};
     return kResultOk;
 }
 
@@ -219,6 +272,14 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                     mHighNormalized = normalized;
                     mTargetHighDb = -16.0 + 32.0 * normalized;
                     break;
+                case kPGPreampClassAId:
+                    mClassAEnabled = normalized >= 0.5 ? 1.0 : 0.0;
+                    mTargetClassAAmount = mClassAEnabled;
+                    break;
+                case kPGPreampIronId:
+                    mIronEnabled = normalized >= 0.5 ? 1.0 : 0.0;
+                    mTargetIronAmount = mIronEnabled;
+                    break;
                 default:
                     break;
             }
@@ -242,6 +303,10 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
     {
         mCurrentDriveGain += mSmoothingCoefficient * (mTargetDriveGain - mCurrentDriveGain);
         mCurrentOutputGain += mSmoothingCoefficient * (mTargetOutputGain - mCurrentOutputGain);
+        mCurrentClassAAmount += mSmoothingCoefficient *
+                                (mTargetClassAAmount - mCurrentClassAAmount);
+        mCurrentIronAmount += mSmoothingCoefficient *
+                              (mTargetIronAmount - mCurrentIronAmount);
 
         for (int32 channel = 0; channel < channels; ++channel)
         {
@@ -250,7 +315,13 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
             if (!source || !destination)
                 continue;
 
-            const double driven = static_cast<double>(source[sample]) * mCurrentDriveGain;
+            const double inputSample = static_cast<double>(source[sample]);
+            const double transformerInput = processTransformerCore(
+                inputSample, mInputTransformerFlux[channel],
+                mInputTransformerMagnetization[channel], 0.0030, mSampleRate);
+            const double modelledInput = inputSample + mCurrentIronAmount *
+                                         (transformerInput - inputSample);
+            const double driven = modelledInput * mCurrentDriveGain;
             const double directSaturation = (std::tanh(driven + bias) - biasOutput) /
                                             (smallSignalSlope * mCurrentDriveGain);
             double processed = directSaturation;
@@ -272,6 +343,12 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
             mPreviousSaturationInput[channel] = driven;
             mSaturationInitialized[channel] = true;
 
+            if (mCurrentClassAAmount > 1.0e-6)
+            {
+                const double classAOutput = processClassABjtStage(processed);
+                processed += mCurrentClassAAmount * (classAOutput - processed);
+            }
+
             auto applyFilter = [](double value, const BiquadCoefficients& coefficients,
                                   FilterState& state)
             {
@@ -288,6 +365,12 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
             processed = applyFilter(processed, lowCoefficients, mLowFilterState[channel]);
             processed = applyFilter(processed, midCoefficients, mMidFilterState[channel]);
             processed = applyFilter(processed, highCoefficients, mHighFilterState[channel]);
+
+            const double transformerOutput = processTransformerCore(
+                processed, mOutputTransformerFlux[channel],
+                mOutputTransformerMagnetization[channel], 0.0012, mSampleRate);
+            if (mCurrentIronAmount > 1.0e-6)
+                processed += mCurrentIronAmount * (transformerOutput - processed);
             destination[sample] = static_cast<float>(processed * mCurrentOutputGain);
         }
     }

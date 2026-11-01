@@ -2,15 +2,18 @@
 
 PG Preamp is an original PG Audio VST3 project.
 
-## Current milestone: v0.5 analog-inspired preamp channel
+## Current milestone: v0.6 optional circuit-color stages
 
 - Native VST3 effect structure.
 - Stereo input and output.
-- Asymmetric soft saturation with an antialiasing stage, voiced for adjustable warmth and smoother peaks.
+- The original asymmetric soft saturation remains the default sound, with an antialiasing stage.
+- Optional A Stage: a normalized BJT exponential-current model with emitter feedback around a quiescent point.
+- Optional Iron: leaky-flux transformer-core saturation blocks before and after the EQ, with independent input/output states.
 - A three-band EQ with 110 Hz low shelf, 1.6 kHz mid peak, and 12 kHz high shelf, using classic 1073 frequency landmarks.
 - A rack-style dark metal front panel, black rotary knobs, pale position markers, and editable readouts.
 - Automatable Drive, Low, Mid, High, and Output controls with host project-state saving.
 - Parameter smoothing to reduce clicks when controls move.
+- Both optional stages default to off; older saved projects load with them disabled.
 - Windows x64 build through GitHub Actions.
 - No local compiler or SDK installation required for the cloud build.
 
@@ -24,6 +27,6 @@ The downloaded artifact contains the `.vst3` bundle directly. Extract it once an
 
 1. Confirm the editor and controls work in FL Studio.
 2. Measure distortion and aliasing across common sample rates.
-3. Refine the preamp stage and tone curves after listening tests.
+3. Calibrate the optional BJT and transformer models against a reference circuit or hardware capture, then refine by listening.
 
-The tonal direction takes inspiration from classic Class-A, transformer-coupled preamps and the musical EQ landmarks of the 1073. This project does not simulate that hardware's discrete circuit, transformers, or inductors and is not an exact emulation.
+The optional A Stage and Iron blocks are first-pass, physically motivated models, not an exact simulation of the 1073's component values, Class-A topology, magnetic hysteresis, or transformers. Their normalized parameters still need calibration against measured hardware or a trusted SPICE reference.

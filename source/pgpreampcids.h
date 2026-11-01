@@ -11,7 +11,9 @@ enum PGPreampParams : Vst::ParamID
     kPGPreampOutputId = 101,
     kPGPreampLowId = 102,
     kPGPreampMidId = 103,
-    kPGPreampHighId = 104
+    kPGPreampHighId = 104,
+    kPGPreampClassAId = 105,
+    kPGPreampIronId = 106
 };
 
 // Unique IDs for PG Preamp processor and controller.
@@ -21,4 +23,3 @@ static const FUID kPGPreampControllerUID (0xD2B64891, 0x3F70A5CE, 0x84E2197B, 0x
 #define PGPreampVST3Category "Fx"
 
 } // namespace Steinberg
-

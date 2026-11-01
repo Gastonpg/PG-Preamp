@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(PGPreamp
-    VERSION 0.5.0
+    VERSION 0.6.0
     DESCRIPTION "PG Preamp - analog-inspired VST3 preamp and equalizer"
 )
 
@@ -19,6 +19,7 @@ smtg_add_vst3plugin(PGPreamp
     resource/pgpreamp.uidesc
     resource/knob_sheet.png
     resource/rack_panel.png
+    resource/stage_switch.png
 )
 
 smtg_target_configure_version_file(PGPreamp)
@@ -27,6 +28,7 @@ smtg_target_add_plugin_resources(PGPreamp
     resource/pgpreamp.uidesc
     resource/knob_sheet.png
     resource/rack_panel.png
+    resource/stage_switch.png
 )
 
 target_compile_features(PGPreamp PRIVATE cxx_std_17)
