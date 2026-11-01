@@ -1,6 +1,7 @@
 #include "pgpreampcontroller.h"
 #include "pgpreampcids.h"
 
+#include "base/source/fstreamer.h"
 #include "public.sdk/source/vst/vstparameters.h"
 
 namespace Steinberg {
@@ -11,9 +12,9 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
     if (result != kResultOk)
         return result;
 
-    parameters.addParameter(new RangeParameter(
+    parameters.addParameter(new Vst::RangeParameter(
         STR16("Drive"), kPGPreampDriveId, STR16("dB"), 0.0, 24.0, 0.0));
-    parameters.addParameter(new RangeParameter(
+    parameters.addParameter(new Vst::RangeParameter(
         STR16("Output"), kPGPreampOutputId, STR16("dB"), -24.0, 12.0, 0.0));
 
     return kResultOk;

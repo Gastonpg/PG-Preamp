@@ -1,7 +1,7 @@
 #include "pgpreampprocessor.h"
 #include "pgpreampcids.h"
 
-#include "public.sdk/source/common/ibstreamer.h"
+#include "base/source/fstreamer.h"
 
 #include <algorithm>
 #include <cmath>
