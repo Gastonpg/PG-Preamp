@@ -99,14 +99,14 @@
               style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
               min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
 
-        <view class="COnOffButton" control-tag="ClassA" bitmap="StageSwitch"
+        <view class="CVerticalSwitch" control-tag="ClassA" bitmap="StageSwitch"
               origin="388, 336" size="44, 52" height-of-one-image="76"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional BJT stage around a Class-A bias point" mouse-enabled="true"/>
         <view class="CTextLabel" origin="355, 389" size="110, 16" title="A STAGE"
               font="~ NormalFontSmall" font-antialias="true" font-color="Text"
               text-alignment="center" style-no-frame="true" transparent="true"/>
-        <view class="COnOffButton" control-tag="Iron" bitmap="StageSwitch"
+        <view class="CVerticalSwitch" control-tag="Iron" bitmap="StageSwitch"
               origin="503, 336" size="44, 52" height-of-one-image="76"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional low-frequency transformer-core saturation model" mouse-enabled="true"/>
