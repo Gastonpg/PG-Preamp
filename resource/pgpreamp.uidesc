@@ -49,23 +49,23 @@
 
         <view class="CAnimKnob" control-tag="Drive" bitmap="KnobSheet"
               origin="66, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
-              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
               default-value="0" mouse-enabled="true" transparent="true"/>
         <view class="CAnimKnob" control-tag="Low" bitmap="KnobSheet"
               origin="228, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
-              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
               default-value="0.5" mouse-enabled="true" transparent="true"/>
         <view class="CAnimKnob" control-tag="Mid" bitmap="KnobSheet"
               origin="390, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
-              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
               default-value="0.5" mouse-enabled="true" transparent="true"/>
         <view class="CAnimKnob" control-tag="High" bitmap="KnobSheet"
               origin="552, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
-              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
               default-value="0.5" mouse-enabled="true" transparent="true"/>
         <view class="CAnimKnob" control-tag="Output" bitmap="KnobSheet"
               origin="714, 206" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
-              angle-start="135" angle-range="270" min-value="0" max-value="1"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
               default-value="0.666667" mouse-enabled="true" transparent="true"/>
 
         <view class="CTextEdit" control-tag="Drive" origin="59, 306" size="92, 26"
@@ -99,18 +99,18 @@
               style-round-rect="true" immediate-text-change="false" style-doubleclick="false"
               min-value="0" max-value="1" default-value="0.666667" transparent="false"/>
 
-        <view class="CVerticalSwitch" control-tag="ClassA" bitmap="StageSwitch"
-              origin="388, 336" size="44, 52" height-of-one-image="76"
+        <view class="COnOffButton" control-tag="ClassA" bitmap="StageSwitch"
+              origin="388, 336" size="44, 56"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional BJT stage around a Class-A bias point" mouse-enabled="true"/>
-        <view class="CTextLabel" origin="355, 389" size="110, 16" title="A STAGE"
+        <view class="CTextLabel" origin="355, 393" size="110, 16" title="A STAGE"
               font="~ NormalFontSmall" font-antialias="true" font-color="Text"
               text-alignment="center" style-no-frame="true" transparent="true"/>
-        <view class="CVerticalSwitch" control-tag="Iron" bitmap="StageSwitch"
-              origin="503, 336" size="44, 52" height-of-one-image="76"
+        <view class="COnOffButton" control-tag="Iron" bitmap="StageSwitch"
+              origin="503, 336" size="44, 56"
               min-value="0" max-value="1" default-value="0"
               tooltip="Optional low-frequency transformer-core saturation model" mouse-enabled="true"/>
-        <view class="CTextLabel" origin="486, 389" size="78, 16" title="IRON"
+        <view class="CTextLabel" origin="486, 393" size="78, 16" title="IRON"
               font="~ NormalFontSmall" font-antialias="true" font-color="Text"
               text-alignment="center" style-no-frame="true" transparent="true"/>
     </template>

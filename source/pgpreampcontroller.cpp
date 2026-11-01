@@ -15,16 +15,26 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
     if (result != kResultOk)
         return result;
 
-    parameters.addParameter(new Vst::RangeParameter(
-        STR16("Drive"), kPGPreampDriveId, STR16("dB"), 0.0, 24.0, 0.0));
-    parameters.addParameter(new Vst::RangeParameter(
-        STR16("Output"), kPGPreampOutputId, STR16("dB"), -24.0, 12.0, 0.0));
-    parameters.addParameter(new Vst::RangeParameter(
-        STR16("Low"), kPGPreampLowId, STR16("dB"), -16.0, 16.0, 0.0));
-    parameters.addParameter(new Vst::RangeParameter(
-        STR16("Mid"), kPGPreampMidId, STR16("dB"), -18.0, 18.0, 0.0));
-    parameters.addParameter(new Vst::RangeParameter(
-        STR16("High"), kPGPreampHighId, STR16("dB"), -16.0, 16.0, 0.0));
+    auto* drive = new Vst::RangeParameter(
+        STR16("Drive"), kPGPreampDriveId, STR16("dB"), 0.0, 24.0, 0.0);
+    drive->setPrecision(1);
+    parameters.addParameter(drive);
+    auto* output = new Vst::RangeParameter(
+        STR16("Output"), kPGPreampOutputId, STR16("dB"), -24.0, 12.0, 0.0);
+    output->setPrecision(1);
+    parameters.addParameter(output);
+    auto* low = new Vst::RangeParameter(
+        STR16("Low"), kPGPreampLowId, STR16("dB"), -16.0, 16.0, 0.0);
+    low->setPrecision(1);
+    parameters.addParameter(low);
+    auto* mid = new Vst::RangeParameter(
+        STR16("Mid"), kPGPreampMidId, STR16("dB"), -18.0, 18.0, 0.0);
+    mid->setPrecision(1);
+    parameters.addParameter(mid);
+    auto* high = new Vst::RangeParameter(
+        STR16("High"), kPGPreampHighId, STR16("dB"), -16.0, 16.0, 0.0);
+    high->setPrecision(1);
+    parameters.addParameter(high);
     parameters.addParameter(new Vst::RangeParameter(
         STR16("Class A Stage"), kPGPreampClassAId, nullptr, 0.0, 1.0, 0.0, 1));
     parameters.addParameter(new Vst::RangeParameter(
