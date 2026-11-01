@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(PGPreamp
-    VERSION 0.1.0
-    DESCRIPTION "PG Preamp - minimal VST3 audio effect"
+    VERSION 0.2.0
+    DESCRIPTION "PG Preamp - warm valve-style VST3 audio effect"
 )
 
 add_subdirectory(external)
@@ -22,3 +22,4 @@ smtg_target_configure_version_file(PGPreamp)
 
 target_compile_features(PGPreamp PRIVATE cxx_std_17)
 target_link_libraries(PGPreamp PRIVATE sdk)
+
