@@ -2,6 +2,7 @@
 #include "pgpreampcids.h"
 
 #include "base/source/fstreamer.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
 
 #include <algorithm>
 #include <cmath>
