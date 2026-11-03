@@ -648,6 +648,27 @@ int main()
             return 78;
     }
 
+    // Fixed-topology stage must remain convergent at common host rates.
+    for (const double rate : {44100.0, 48000.0, 96000.0, 192000.0})
+    {
+        FixedCommonEmitterStage multirateStage;
+        if (!multirateStage.prepare(rate, realtimeParameters, transistor))
+            return 80;
+        for (int sample = 0; sample < 512; ++sample)
+        {
+            const float input = static_cast<float>(
+                0.02 * std::sin(2.0 * pi * 1000.0 * sample / rate));
+            FixedCommonEmitterStage::ProcessResult rateResult;
+            if (!multirateStage.processSample(input, rateResult))
+                return 81;
+            if (!std::isfinite(rateResult.output) ||
+                !std::isfinite(rateResult.collectorVolts) ||
+                rateResult.collectorVolts < -0.1 ||
+                rateResult.collectorVolts > realtimeParameters.supplyVolts + 0.1)
+                return 82;
+        }
+    }
+
     std::cout << "PG Circuit Engine: R, L, C, NPN, coupled windings, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
 }
