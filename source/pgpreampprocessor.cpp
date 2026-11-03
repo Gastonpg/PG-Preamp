@@ -406,7 +406,10 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                 if (stage.processSample(stageInput, stageResult))
                     stageWet = stageResult.output;
             }
-            const float stageDry = stageInput *
+            // The common-emitter stage is inverting. Keep the matched dry
+            // reference at the same polarity so crossfading A Stage cannot
+            // create phase cancellation or a level dip.
+            const float stageDry = -stageInput *
                 static_cast<float>(stagesReady_ ? kAStageReferenceGain : 1.0);
             const float stageOutput = stageDry +
                 (stageWet - stageDry) * static_cast<float>(aStageMix_);
