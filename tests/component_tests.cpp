@@ -7,6 +7,7 @@
 #include "circuit/pg_preisach_core.h"
 #include "circuit/pg_magnetic_transformer.h"
 #include "circuit/pg_fixed_common_emitter.h"
+#include "circuit/pg_a_stage_profile.h"
 #include "circuit/pg_fixed_magnetic_transformer.h"
 #include "circuit/pg_iron_calibration.h"
 
@@ -590,12 +591,13 @@ int main()
 
     // The processor's provisional transistor model must start from its solved
     // DC bias. Silence immediately after prepare must not produce an output pop.
-    EbersMollNpn pluginDefaultTransistor;
-    pluginDefaultTransistor.prepare(1.0e-14, 120.0, 2.0, 300.15);
-    pluginDefaultTransistor.setAdvancedParameters(detailedParameters);
+    auto pluginDefaultTransistor =
+        PGAudio::Circuit::PgAStageProfileV1::makeTransistor();
     FixedCommonEmitterStage startupStage;
-    if (!startupStage.prepare(48000.0, FixedCommonEmitterStage::Parameters{},
-                              pluginDefaultTransistor))
+    if (!startupStage.prepare(
+            48000.0,
+            PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+            pluginDefaultTransistor))
         return 83;
 
     double startupSilencePeak = 0.0;
@@ -616,9 +618,29 @@ int main()
     // Measure the exact provisional transistor used by the VST3 processor,
     // not the more generic transistor used in the independent topology test.
     FixedCommonEmitterStage pluginStage;
-    if (!pluginStage.prepare(48000.0, FixedCommonEmitterStage::Parameters{},
-                             pluginDefaultTransistor))
+    if (!pluginStage.prepare(
+            48000.0,
+            PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+            pluginDefaultTransistor))
         return 106;
+
+    // Verify that the solved quiescent point is genuinely forward-active.
+    // This establishes a Class-A bias condition at rest; the following
+    // full-cycle test checks that the usable input envelope does not cut off.
+    const auto& pluginBias = pluginStage.biasOperatingPoint();
+    const double biasCurrentSum = pluginBias.collectorCurrentAmps +
+        pluginBias.baseCurrentAmps + pluginBias.emitterCurrentAmps;
+    if (!pluginStage.isBiasReady() || !pluginBias.converged ||
+        !(pluginBias.collectorCurrentAmps > 0.0) ||
+        !(pluginBias.emitterCurrentAmps < 0.0) ||
+        !(pluginBias.collectorEmitterVolts > 1.0) ||
+        std::abs(biasCurrentSum) > 1.0e-9)
+        return 111;
+    std::cout << "PG A Stage M1 bias: Ic="
+              << pluginBias.collectorCurrentAmps * 1000.0
+              << " mA, Vce=" << pluginBias.collectorEmitterVolts
+              << " V, residual=" << pluginBias.residualAmps << " A\\n";
+
     double pluginStageInputSquares = 0.0;
     double pluginStageOutputSquares = 0.0;
     double pluginStageOutputSum = 0.0;
@@ -657,6 +679,39 @@ int main()
     if (!(pluginStageCorrelation < 0.0))
         return 109;
     std::cout << "Plugin A Stage reference gain=" << pluginStageGain << "x\\n";
+
+    // Full-cycle headroom: at the maximum nominal +18 dB input setting,
+    // a full-scale host sample maps to roughly 40 mV peak at this circuit
+    // boundary. The transistor must remain conducting through the waveform.
+    FixedCommonEmitterStage classAHeadroomStage;
+    if (!classAHeadroomStage.prepare(
+            48000.0,
+            PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+            pluginDefaultTransistor))
+        return 112;
+    double minimumCollectorCurrent = std::numeric_limits<double>::infinity();
+    double minimumCollectorEmitterVolts = std::numeric_limits<double>::infinity();
+    constexpr double maximumNominalInputPeakVolts = 0.04;
+    constexpr int classAHeadroomSamples = 4800;
+    for (int sample = 0; sample < classAHeadroomSamples; ++sample)
+    {
+        const double input = maximumNominalInputPeakVolts *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        FixedCommonEmitterStage::ProcessResult result;
+        if (!classAHeadroomStage.processSample(static_cast<float>(input), result))
+            return 113;
+        minimumCollectorCurrent = std::min(
+            minimumCollectorCurrent, result.collectorCurrentAmps);
+        minimumCollectorEmitterVolts = std::min(
+            minimumCollectorEmitterVolts, result.collectorEmitterVolts);
+        if (!(result.collectorCurrentAmps > 0.0) ||
+            !(result.collectorEmitterVolts > 0.2))
+            return 114;
+    }
+    std::cout << "PG A Stage M1 +18 dB full-scale headroom: minimum Ic="
+              << minimumCollectorCurrent * 1000.0
+              << " mA, minimum Vce=" << minimumCollectorEmitterVolts
+              << " V (no cutoff)\\n";
 
     // Real-time loaded transformer: the primary is driven through a source
     // resistance, the secondary is terminated, and winding currents satisfy
