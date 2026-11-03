@@ -89,8 +89,9 @@ public:
         emitterDeviceResistance_ = deviceParameters.emitterResistanceOhms;
 
         configured_ = true;
+        biasReady_ = false;
         reset();
-        return true;
+        return biasReady_;
     }
 
     void reset() noexcept
@@ -98,30 +99,16 @@ public:
         if (!configured_)
             return;
 
-        // Sensible initial guess for a 12 V common-emitter stage. The coupling
-        // capacitors begin with their DC-blocking voltages already established.
-        solution_ = {1.65, 1.65, 7.5, 7.5, 0.95, 0.95, 0.0};
-        inputCapacitorVoltage_ = -solution_[0];
-        outputCapacitorVoltage_ = solution_[2] - solution_[6];
-
-        const auto initial = transistor_.evaluateWithDerivatives(
-            solution_[1], solution_[3], solution_[5]);
-        for (int terminal = 0; terminal < 3; ++terminal)
-            previousTransistorCharge_[terminal] =
-                initial.terminalChargeCoulombs[terminal];
-
-        lastResult_ = {};
-        lastResult_.converged = true;
-        lastResult_.baseVolts = solution_[0];
-        lastResult_.collectorVolts = solution_[2];
-        lastResult_.emitterVolts = solution_[4];
-        lastResult_.output = 0.0f;
+        // Re-solve the DC operating point whenever the circuit is reset.
+        // Coupling-capacitor states are then initialized to that exact bias,
+        // so the first audio sample cannot create a false output transient.
+        biasReady_ = initializeBiasPoint();
     }
 
     bool processSample(float inputVolts, ProcessResult& result) noexcept
     {
         result = lastResult_;
-        if (!configured_ || !std::isfinite(inputVolts))
+        if (!configured_ || !biasReady_ || !std::isfinite(inputVolts))
         {
             result.converged = false;
             return false;
@@ -351,6 +338,151 @@ private:
         }
     }
 
+    void assembleBias(const Vector& x, Matrix& jacobian,
+                      Vector& residual) const noexcept
+    {
+        jacobian = {};
+        residual = {};
+
+        const double vbExternal = x[0];
+        const double vbInternal = x[1];
+        const double vcExternal = x[2];
+        const double vcInternal = x[3];
+        const double veExternal = x[4];
+        const double veInternal = x[5];
+
+        const double invBaseFeed = 1.0 / parameters_.baseFeedResistanceOhms;
+        const double invBaseReturn = 1.0 / parameters_.baseReturnResistanceOhms;
+        const double invCollector = 1.0 / parameters_.collectorResistanceOhms;
+        const double invEmitter = 1.0 / parameters_.emitterResistanceOhms;
+        const double invBaseDevice = 1.0 / baseResistance_;
+        const double invCollectorDevice = 1.0 / collectorDeviceResistance_;
+        const double invEmitterDevice = 1.0 / emitterDeviceResistance_;
+
+        // DC operating-point equations: coupling capacitors are open circuits.
+        residual[0] = (vbExternal - parameters_.supplyVolts) * invBaseFeed +
+                      vbExternal * invBaseReturn +
+                      (vbExternal - vbInternal) * invBaseDevice;
+        jacobian[0][0] = invBaseFeed + invBaseReturn + invBaseDevice;
+        jacobian[0][1] = -invBaseDevice;
+
+        residual[2] = (vcExternal - parameters_.supplyVolts) * invCollector +
+                      (vcExternal - vcInternal) * invCollectorDevice;
+        jacobian[2][2] = invCollector + invCollectorDevice;
+        jacobian[2][3] = -invCollectorDevice;
+
+        residual[4] = veExternal * invEmitter +
+                      (veExternal - veInternal) * invEmitterDevice;
+        jacobian[4][4] = invEmitter + invEmitterDevice;
+        jacobian[4][5] = -invEmitterDevice;
+
+        const auto device = transistor_.evaluateWithDerivatives(
+            vbInternal, vcInternal, veInternal);
+        const std::size_t nodeIndex[3] = {1, 3, 5};
+        const std::size_t externalIndex[3] = {0, 2, 4};
+        const double currents[3] = {
+            device.currents.baseAmps,
+            device.currents.collectorAmps,
+            device.currents.emitterAmps
+        };
+        const double seriesConductance[3] = {
+            invBaseDevice, invCollectorDevice, invEmitterDevice
+        };
+
+        for (int row = 0; row < 3; ++row)
+        {
+            const std::size_t r = nodeIndex[row];
+            const std::size_t ext = externalIndex[row];
+            residual[r] = (x[r] - x[ext]) * seriesConductance[row] +
+                          currents[row];
+            jacobian[r][r] = seriesConductance[row];
+            jacobian[r][ext] = -seriesConductance[row];
+
+            for (int column = 0; column < 3; ++column)
+                jacobian[r][nodeIndex[column]] += device.conductance[row][column];
+        }
+
+        // The output coupling capacitor is open at DC and the load returns
+        // the output node to ground.
+        residual[6] = x[6];
+        jacobian[6][6] = 1.0;
+    }
+
+    bool initializeBiasPoint() noexcept
+    {
+        Vector candidate = {1.65, 1.65, 7.5, 7.5, 0.95, 0.95, 0.0};
+        bool converged = false;
+        double residualNorm = std::numeric_limits<double>::infinity();
+        unsigned iterations = 0;
+
+        // This runs only during prepare/reset, never in the audio callback.
+        constexpr unsigned maximumBiasIterations = 32;
+        for (; iterations < maximumBiasIterations; ++iterations)
+        {
+            Matrix jacobian{};
+            Vector residual{};
+            assembleBias(candidate, jacobian, residual);
+            residualNorm = maxAbs(residual);
+
+            if (residualNorm <= parameters_.residualToleranceAmps)
+            {
+                converged = true;
+                break;
+            }
+
+            Vector delta{};
+            for (std::size_t i = 0; i < UnknownCount; ++i)
+                delta[i] = -residual[i];
+
+            if (!solveLinearSystem(jacobian, delta))
+                break;
+
+            for (std::size_t i = 0; i < UnknownCount; ++i)
+                candidate[i] += delta[i];
+
+            if (!allFinite(candidate))
+                break;
+        }
+
+        if (!converged)
+        {
+            Matrix checkJacobian{};
+            Vector checkResidual{};
+            assembleBias(candidate, checkJacobian, checkResidual);
+            residualNorm = maxAbs(checkResidual);
+            converged = allFinite(candidate) &&
+                        residualNorm <= parameters_.residualToleranceAmps * 10.0;
+        }
+
+        if (!converged)
+        {
+            lastResult_ = {};
+            lastResult_.converged = false;
+            lastResult_.residualAmps = residualNorm;
+            return false;
+        }
+
+        const auto biasDevice = transistor_.evaluateWithDerivatives(
+            candidate[1], candidate[3], candidate[5]);
+
+        solution_ = candidate;
+        inputCapacitorVoltage_ = -candidate[0];
+        outputCapacitorVoltage_ = candidate[2] - candidate[6];
+        for (int terminal = 0; terminal < 3; ++terminal)
+            previousTransistorCharge_[terminal] =
+                biasDevice.terminalChargeCoulombs[terminal];
+
+        lastResult_ = {};
+        lastResult_.converged = true;
+        lastResult_.iterations = iterations;
+        lastResult_.residualAmps = residualNorm;
+        lastResult_.baseVolts = candidate[0];
+        lastResult_.collectorVolts = candidate[2];
+        lastResult_.emitterVolts = candidate[4];
+        lastResult_.output = static_cast<float>(candidate[6]);
+        return true;
+    }
+
     static bool solveLinearSystem(Matrix matrix, Vector& rhs) noexcept
     {
         for (std::size_t column = 0; column < UnknownCount; ++column)
@@ -422,6 +554,7 @@ private:
     double previousTransistorCharge_[3]{};
     ProcessResult lastResult_{};
     bool configured_ = false;
+    bool biasReady_ = false;
 };
 
 } // namespace PGAudio::Circuit
