@@ -72,7 +72,7 @@
               font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
         <view class="CTextLabel" origin="484, 328" size="150, 18"
-              title="−12 dB  …  +12 dB" font="~ NormalFontSmall"
+              title="−18 dB  …  +18 dB" font="~ NormalFontSmall"
               font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
         <view class="COnOffButton" control-tag="AStage" bitmap="StageSwitch"
