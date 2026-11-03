@@ -985,6 +985,48 @@ int main()
               << 0.5 * (lowerBaseVoltage + upperBaseVoltage)
               << " V, predicted hFE=" << bc550cDatasheetGain << "\\n";
 
+    // Validate the analytic conductance Jacobian in the new Gummel-Poon
+    // base-charge path against central finite differences at its datasheet
+    // operating point, including Early effect and leakage branches.
+    const double bc550cBaseVoltage =
+        0.5 * (lowerBaseVoltage + upperBaseVoltage);
+    const auto bc550cAnalytic = cordellBc550c.evaluateWithDerivatives(
+        bc550cBaseVoltage, 5.0, 0.0);
+    constexpr double bc550cDerivativeStep = 1.0e-7;
+    for (int column = 0; column < 3; ++column)
+    {
+        double plusVoltage[3] = {bc550cBaseVoltage, 5.0, 0.0};
+        plusVoltage[column] += bc550cDerivativeStep;
+        const auto plus = cordellBc550c.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+        plusVoltage[column] -= 2.0 * bc550cDerivativeStep;
+        const auto minus = cordellBc550c.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+        const double plusCurrent[3] = {
+            plus.currents.baseAmps, plus.currents.collectorAmps,
+            plus.currents.emitterAmps
+        };
+        const double minusCurrent[3] = {
+            minus.currents.baseAmps, minus.currents.collectorAmps,
+            minus.currents.emitterAmps
+        };
+        for (int row = 0; row < 3; ++row)
+        {
+            const double numerical = (plusCurrent[row] - minusCurrent[row]) /
+                                     (2.0 * bc550cDerivativeStep);
+            const double analytic = bc550cAnalytic.conductance[row][column];
+            if (!near(analytic, numerical,
+                      std::max(1.0e-8, std::abs(numerical) * 3.0e-4)))
+                return 148;
+        }
+    }
+    if (!near(bc550cAnalytic.currents.baseAmps +
+              bc550cAnalytic.currents.collectorAmps +
+              bc550cAnalytic.currents.emitterAmps, 0.0, 1.0e-12))
+        return 149;
+
+
+
     FixedCommonEmitterStage bc550cReferenceStage;
     if (!bc550cReferenceStage.prepare(
             48000.0,
