@@ -158,7 +158,7 @@ public:
                 if (!std::isfinite(delta[i]))
                     break;
                 updateNorm = std::max(updateNorm, std::abs(delta[i]));
-                candidate[i] += 0.8 * delta[i];
+                candidate[i] += delta[i];
             }
 
             if (!allFinite(candidate))
