@@ -8,6 +8,7 @@
 #include "circuit/pg_magnetic_transformer.h"
 #include "circuit/pg_fixed_common_emitter.h"
 #include "circuit/pg_fixed_magnetic_transformer.h"
+#include "circuit/pg_iron_calibration.h"
 
 #include <algorithm>
 #include <array>
@@ -662,8 +663,18 @@ int main()
     // Ampere's law while induced voltages obey Faraday's law.
     using FixedMagneticTransformerStage =
         PGAudio::Circuit::FixedMagneticTransformerStage;
-    FixedMagneticTransformerStage::Parameters transformerParameters;
+    auto transformerParameters =
+        PGAudio::Circuit::PgIronCalibrationV1::makeParameters();
     FixedMagneticTransformerStage transformerStage;
+    if (!near(transformerParameters.primaryTurns, 1000.0, 1.0e-12) ||
+        !near(transformerParameters.secondaryTurns, 2000.0, 1.0e-12) ||
+        !near(transformerParameters.sourceResistanceOhms, 150.0, 1.0e-12) ||
+        !near(transformerParameters.primaryWindingResistanceOhms, 12.0, 1.0e-12) ||
+        !near(transformerParameters.secondaryWindingResistanceOhms, 65.0, 1.0e-12) ||
+        !near(transformerParameters.loadResistanceOhms, 1200.0, 1.0e-12) ||
+        !near(PGAudio::Circuit::PgIronCalibrationV1::smallSignalReferenceGain,
+              1.2545, 1.0e-12))
+        return 110;
     if (!transformerStage.prepare(48000.0, transformerParameters))
         return 86;
 
