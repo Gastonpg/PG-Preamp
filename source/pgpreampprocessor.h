@@ -2,6 +2,7 @@
 
 #include "public.sdk/source/vst/vstaudioeffect.h"
 #include "circuit/pg_fixed_common_emitter.h"
+#include "circuit/pg_fixed_magnetic_transformer.h"
 
 #include <array>
 
@@ -29,10 +30,15 @@ private:
     static double decibelsToLinear(double decibels) noexcept;
 
     std::array<PGAudio::Circuit::FixedCommonEmitterStage, 2> stages_{};
+    std::array<PGAudio::Circuit::FixedMagneticTransformerStage, 2> transformers_{};
+
     double inputGainNormalized_ = 0.4;
     double outputGainNormalized_ = 0.5;
     bool bypass_ = false;
+    bool aStageEnabled_ = true;
+    bool ironEnabled_ = false;
     bool stagesReady_ = false;
+    bool transformersReady_ = false;
 };
 
 } // namespace Steinberg
