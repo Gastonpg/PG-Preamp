@@ -334,7 +334,13 @@ int main()
     }
 
     if (!(outputPeak > 0.01 && outputTrough < -0.01))
+    {
+        std::cerr.precision(17);
+        std::cerr << "CE output range: peak=" << outputPeak
+                  << " trough=" << outputTrough
+                  << " correlation=" << inputOutputCorrelation << "\n";
         return 43;
+    }
     if (!(inputOutputCorrelation < 0.0))
         return 44;
 
