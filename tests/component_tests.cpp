@@ -312,8 +312,8 @@ int main()
         return 40;
 
     double inputOutputCorrelation = 0.0;
-    double inputSquares = 0.0;
-    double outputSquares = 0.0;
+    double amplifierInputSquares = 0.0;
+    double amplifierOutputSquares = 0.0;
     double outputSum = 0.0;
     double outputPeak = -std::numeric_limits<double>::infinity();
     double outputTrough = std::numeric_limits<double>::infinity();
@@ -335,8 +335,8 @@ int main()
         if (sample >= measurementStart)
         {
             inputOutputCorrelation += input * output;
-            inputSquares += input * input;
-            outputSquares += output * output;
+            amplifierInputSquares += input * input;
+            amplifierOutputSquares += output * output;
             outputSum += output;
             outputPeak = std::max(outputPeak, output);
             outputTrough = std::min(outputTrough, output);
@@ -346,8 +346,8 @@ int main()
 
     const double outputMean = outputSum / measuredSamples;
     const double outputAcRms = std::sqrt(std::max(
-        0.0, outputSquares / measuredSamples - outputMean * outputMean));
-    const double inputRms = std::sqrt(inputSquares / measuredSamples);
+        0.0, amplifierOutputSquares / measuredSamples - outputMean * outputMean));
+    const double inputRms = std::sqrt(amplifierInputSquares / measuredSamples);
     const double measuredVoltageGain = outputAcRms / inputRms;
 
     if (!(outputPeak - outputTrough > 0.02 && measuredVoltageGain > 2.0))
