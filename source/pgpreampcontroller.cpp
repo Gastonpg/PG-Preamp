@@ -21,18 +21,27 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
         Vst::ParameterInfo::kCanAutomate | Vst::ParameterInfo::kIsBypass,
         kPGPreampBypassId);
 
-    // Keep the normalized mappings used by the circuit processor:
-    // Input 0.4 = 0 dB in the -12..+18 dB range.
+    // Input 0.4 maps to 0 dB in the -12 .. +18 dB range.
     auto* input = new Vst::RangeParameter(
         STR16("Input"), kPGPreampInputGainId, STR16("dB"), -12.0, 18.0, 0.0);
     input->setPrecision(1);
     parameters.addParameter(input);
 
-    // Output 0.5 = 0 dB in the -12..+12 dB range.
+    // Output 0.5 maps to 0 dB in the -12 .. +12 dB range.
     auto* output = new Vst::RangeParameter(
         STR16("Output"), kPGPreampOutputGainId, STR16("dB"), -12.0, 12.0, 0.0);
     output->setPrecision(1);
     parameters.addParameter(output);
+
+    parameters.addParameter(
+        STR16("A Stage"), STR16(""), 1, 1.0,
+        Vst::ParameterInfo::kCanAutomate,
+        kPGPreampAStageId);
+
+    parameters.addParameter(
+        STR16("Iron"), STR16(""), 1, 0.0,
+        Vst::ParameterInfo::kCanAutomate,
+        kPGPreampIronId);
 
     return kResultOk;
 }
@@ -51,11 +60,20 @@ tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
         !streamer.readFloat(outputValue))
         return kResultFalse;
 
+    // Old project states contain only these three values. Keep the new
+    // A Stage / Iron defaults when the optional fields are absent.
+    float aStageValue = 1.0f;
+    float ironValue = 0.0f;
+    streamer.readFloat(aStageValue);
+    streamer.readFloat(ironValue);
+
     setParamNormalized(kPGPreampBypassId, bypassValue >= 0.5f ? 1.0 : 0.0);
     setParamNormalized(kPGPreampInputGainId,
                        std::clamp(static_cast<double>(inputValue), 0.0, 1.0));
     setParamNormalized(kPGPreampOutputGainId,
                        std::clamp(static_cast<double>(outputValue), 0.0, 1.0));
+    setParamNormalized(kPGPreampAStageId, aStageValue >= 0.5f ? 1.0 : 0.0);
+    setParamNormalized(kPGPreampIronId, ironValue >= 0.5f ? 1.0 : 0.0);
     return kResultOk;
 }
 
