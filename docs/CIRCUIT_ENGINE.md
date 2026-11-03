@@ -26,61 +26,79 @@ An optional deterministic Gaussian-approximation source exists for tests, but is
 
 ### Capacitor (C)
 
-A current-driven capacitor stores dielectric voltage and includes series equivalent resistance (ESR) plus parallel leakage resistance. With current held constant during one sample, leakage recovery uses the exact exponential solution. In the MNA network solver, ESR is represented as an explicit series resistor, leakage as a parallel resistor, and the capacitor's transient current uses a backward-Euler companion model. Dielectric absorption and voltage-dependent capacitance are future model extensions.
+A current-driven capacitor stores dielectric voltage and includes series equivalent resistance (ESR) plus parallel leakage resistance. With current held constant during one sample, leakage recovery uses the exact exponential solution. In the MNA network solver, ESR is represented as an explicit series resistor, leakage as a parallel resistor, and the capacitor's transient current uses a backward-Euler companion model.
 
 ### Inductor (L)
 
-The component-level model tracks winding current with series winding resistance. In the network solver, an inductor is an MNA branch-current unknown with a backward-Euler constitutive equation. This permits inductors to connect into larger RLC networks. Magnetic saturation, hysteresis and core loss are not yet included.
+The component-level model tracks winding current with series winding resistance. In the network solver, an inductor is an MNA branch-current unknown with a backward-Euler constitutive equation. Linear magnetic coupling between two winding branches is represented through signed mutual inductance:
 
-### Coupled transformer windings
+M = k * sqrt(Lp * Ls), |k| < 1
 
-Two inductor branches can be coupled with signed mutual inductance:
+### Magnetic core and transformer
 
-M = k * sqrt(Lp * Ls)
+`PreisachCore` uses a discrete weighted ensemble of magnetic relay domains with separate upper/lower switching fields. The domain states preserve magnetic history, allowing remanence, coercive switching and minor-loop behavior. Its flux-density calculation includes the vacuum-field term plus the domain magnetization contribution.
 
-where k is the signed coupling coefficient and |k| < 1. The sign represents winding polarity/dot convention. Each winding retains its own resistance and current state, while the MNA branch equations contain symmetric cross-coupling terms. A loaded 100:1 inductance-ratio test verifies the expected voltage turns ratio within tolerance.
+The model accumulates the B-H work integral:
 
-This is a linear coupled-winding model. It does not yet simulate nonlinear permeability, core saturation, hysteresis, frequency-dependent core loss, or winding capacitance. It is not a complete transformer emulation.
+W_h / volume = integral(H dB)
+
+and provides a separate rate-dependent eddy-loss proxy proportional to (dB/dt)^2. The relay ensemble is a phenomenological Preisach-type model, not a first-principles micromagnetic simulation. Its coercivity distribution, saturation flux density and loss coefficient need calibration from measured core material data before it can represent a particular transformer core.
+
+`MagneticTransformer` combines this history-dependent flux with winding turns, winding resistance and leakage inductance. Given primary and secondary winding currents, it computes induced winding voltage from Faraday's law:
+
+v = Rw*i + L_leak*(di/dt) + N*A*(dB/dt)
+
+This current-driven transformer block is a nonlinear two-port component model for offline validation. It is not yet connected to the generic MNA solver or the plugin signal path.
 
 ### NPN transistor
 
-The static Ebers-Moll primitive calculates collector, base and emitter currents from base-emitter and base-collector junction voltages. It includes saturation current, forward/reverse beta and SPICE-style temperature scaling. Its analytic terminal-conductance matrix is used by Newton iterations in the circuit solver.
+The extended NPN model retains Ebers-Moll transport currents and adds a compact Gummel-Poon-style set of effects:
 
-This is a static junction model only. It does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not claimed to reproduce a particular transistor device.
+- forward/reverse Early-voltage output-conductance correction;
+- external base, collector and emitter series resistances;
+- voltage-dependent base-emitter and base-collector depletion charge;
+- forward/reverse transit-time diffusion charge;
+- analytic current-conductance and charge-capacitance Jacobians;
+- temperature scaling of saturation current and beta.
 
-## Circuit-level solver
+The MNA solver stamps the internal series resistors and integrates terminal charge with a backward-Euler companion equation. This is a compact model, not the full ngspice Gummel-Poon model: high-current beta roll-off, leakage-current branches, full bias-dependent transit-time behavior, substrate junctions and every SPICE temperature coefficient are not implemented. Device-specific parameters must come from a device datasheet or measured characterization. The model structure follows the documented families of parameters in the [ngspice manual](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf).
 
-`MnaCircuit` is a double-precision modified-nodal-analysis (MNA) engine for offline component/network validation. It assembles:
+## Circuit-level solvers
 
-- resistor conductance and temperature-dependent resistance;
-- capacitor companion conductance and history current, including explicit ESR and leakage branches;
-- inductor branch-current equations and winding resistance;
-- mutual-inductance cross-coupling between winding branches;
-- ideal voltage/current sources;
-- nonlinear NPN terminal currents and their analytic Jacobian.
+### Generic offline MNA
 
-A pivoted dense linear solve handles each Newton update. This is deliberately a test/engineering solver, not real-time plugin code: it allocates matrices and performs nonlinear iterations. It must not be called from the audio callback in its current form.
+`MnaCircuit` is a double-precision modified-nodal-analysis engine for offline component/network validation. It assembles resistors, capacitors, inductors, coupled windings, sources and nonlinear NPN devices. A pivoted dense linear solve handles each Newton update.
+
+It uses dynamically sized matrices and performs nonlinear iterations. It is a reference/test solver and must not be called from the audio callback.
+
+### Fixed-topology real-time candidate
+
+`FixedCommonEmitterStage` implements one explicitly fixed common-emitter topology using a 7-unknown Newton system and stack-allocated arrays. Its audio-sample method uses no dynamic containers, heap allocation, locks or general-purpose MNA assembly. It includes the transistor's internal series resistances and dynamic junction charge, plus input/output coupling-capacitor history.
+
+This stage is an optimization candidate and a circuit validation fixture. It is not yet the final PG Preamp schematic, and it does not include the nonlinear transformer in its audio path.
 
 ## Verified test circuits
 
 The automated component suite currently checks:
 
-1. R, L and C component equations, resistor temperature coefficients and thermal-noise statistics.
-2. An RC network against its backward-Euler transient recurrence.
-3. An RL network against its backward-Euler branch-current recurrence.
-4. Two coupled windings under load, checking the expected turns ratio.
-5. NPN terminal-current conservation and the analytic Jacobian against finite differences.
-6. A 12 V common-emitter test stage with a base divider, collector/emitter resistors and a nonlinear NPN transistor, solving its DC bias point.
-7. A common-emitter stage with input/output coupling capacitors, source resistance and output load, verifying nonzero AC gain and phase inversion.
+1. R, L and C equations, resistor temperature coefficients and thermal-noise statistics.
+2. RC and RL network transients against their backward-Euler recurrences.
+3. Two linearly coupled windings under load, checking turns ratio.
+4. NPN terminal-current conservation, Early effect, and analytic current/charge Jacobians against finite differences.
+5. A Preisach-style core's saturation, remanence, hysteresis work and non-negative eddy-loss proxy.
+6. A current-driven nonlinear transformer: small-signal turns ratio, core saturation and remanent flux.
+7. A 12 V common-emitter circuit with bias divider, collector/emitter resistors and nonlinear transistor, solving its DC operating point.
+8. The same class of stage with AC coupling and load, verifying gain and phase inversion in generic MNA.
+9. The fixed-topology stage, verifying gain/phase and comparing its measured gain with the generic MNA reference.
 
-The common-emitter circuit is a solver validation fixture, not a claim that this is the final PG Preamp topology or an exact 1073 circuit.
+The amplifier fixtures are engineering test topologies. They are not claims of an exact 1073 circuit.
 
 ## Next physical-model milestones
 
-1. Add transistor series resistances, Early effect and junction/diffusion charge using sourced device parameters.
-2. Add capacitor dielectric absorption and inductor core-loss behavior as separately validated models.
-3. Extend the coupled transformer model with winding capacitance, core losses and a nonlinear magnetic model with documented parameters.
-4. Select and validate the PG Preamp's actual input, gain and output topology from a circuit-level reference design.
-5. Profile accuracy, stability and CPU cost, then build a fixed-topology real-time solver or derive an efficient state-space implementation. Only after those steps should the model enter the VST3 audio path.
+1. Calibrate transistor model parameters against chosen device datasheets or SPICE reference sweeps, including temperature and bias-dependent effects.
+2. Calibrate magnetic core hysteresis and losses against a selected transformer/core dataset, and add winding capacitance/interwinding parasitics.
+3. Connect the transformer and fixed gain-stage models in a fixed-topology signal path; compare the result against the generic MNA reference and measured frequency/transient responses.
+4. Add explicit input/headroom and output controls, then integrate the validated topology into the VST3 processor.
+5. Measure CPU cost, oversampling needs, denormal behavior and stability at 44.1/48/96/192 kHz before release.
 
-The engine is independent of the VST3 wrapper so validated components and models can later be reused by PG Optical Compressor.
+The component and model libraries remain independent of the VST3 wrapper so validated models can later be reused by PG Optical Compressor.
