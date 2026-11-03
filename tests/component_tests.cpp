@@ -1199,6 +1199,55 @@ int main()
         }
     }
 
+    // Release-mode throughput estimate for the actual stereo signal path:
+    // two transformer + two common-emitter instances for one second of audio.
+    // This is a runner baseline, not a substitute for profiling the user's PC.
+    std::array<FixedCommonEmitterStage, 2> benchmarkStages;
+    std::array<FixedMagneticTransformerStage, 2> benchmarkTransformers;
+    for (std::size_t channel = 0; channel < 2; ++channel)
+    {
+        if (!benchmarkStages[channel].prepare(
+                48000.0,
+                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                pluginDefaultTransistor) ||
+            !benchmarkTransformers[channel].prepare(48000.0, transformerParameters))
+            return 120;
+    }
+
+    unsigned maximumStageIterations = 0;
+    unsigned maximumTransformerIterations = 0;
+    constexpr int benchmarkSamples = 48000;
+    const auto benchmarkStart = std::chrono::steady_clock::now();
+    for (int sample = 0; sample < benchmarkSamples; ++sample)
+    {
+        const float hostInput = static_cast<float>(
+            0.75 * std::sin(2.0 * pi * 997.0 * sample / 48000.0));
+        for (std::size_t channel = 0; channel < 2; ++channel)
+        {
+            FixedMagneticTransformerStage::ProcessResult transformerResult;
+            if (!benchmarkTransformers[channel].processSample(
+                    hostInput * 0.005f, transformerResult))
+                return 121;
+            maximumTransformerIterations = std::max(
+                maximumTransformerIterations, transformerResult.iterations);
+
+            FixedCommonEmitterStage::ProcessResult stageResult;
+            if (!benchmarkStages[channel].processSample(
+                    transformerResult.outputVolts /
+                        static_cast<float>(PGAudio::Circuit::PgIronCalibrationV1::smallSignalReferenceGain),
+                    stageResult))
+                return 122;
+            maximumStageIterations = std::max(
+                maximumStageIterations, stageResult.iterations);
+        }
+    }
+    const double benchmarkSeconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - benchmarkStart).count();
+    std::cout << "48 kHz stereo DSP benchmark: "
+              << benchmarkSeconds * 100.0 << "% of real time, "
+              << "max Newton iterations A Stage=" << maximumStageIterations
+              << ", Iron=" << maximumTransformerIterations << "\n";
+
     std::cout << "PG Circuit Engine: R, L, C, NPN, coupled windings, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
 }
