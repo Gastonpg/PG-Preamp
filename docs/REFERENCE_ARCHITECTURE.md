@@ -22,7 +22,7 @@ We will define our own signal path before implementing gain or coloration:
 
 1. **Input network:** source impedance, termination, coupling and passive filtering.
 2. **Input transformer model:** winding ratio, magnetizing inductance, leakage inductance, winding resistance, interwinding capacitance, core loss and nonlinear core behavior. Parameters must come from documented measurements or explicitly declared estimates.
-3. **Active gain stage:** choose a realizable transistor topology and bias model. A static waveshaper alone is not an adequate substitute for a biased active circuit.
+3. **Active gain stage:** select a realizable transistor topology and bias model. A static waveshaper alone is not an adequate substitute for a biased active circuit.
 4. **Passive network:** model resistors, capacitors and inductors, including relevant loss/parasitic terms. Test both frequency and transient responses.
 5. **Output stage and transformer:** model headroom, output impedance, load dependence and magnetic behavior; validate against reference measurements.
 
@@ -42,5 +42,6 @@ We will define our own signal path before implementing gain or coloration:
 - Resistor thermal-noise density and bandwidth-integrated RMS noise, plus an optional seeded test source.
 - Current-driven capacitor with ESR and leakage resistance.
 - Linear inductor with series winding resistance.
+- Static Ebers-Moll NPN junction model with forward/reverse beta and temperature dependence.
 
-These are component-level foundations only; they are not yet wired into the Preamp audio path. Capacitor dielectric absorption and nonlinear magnetic effects remain separately testable extensions.
+These are component-level foundations only; they are not yet wired into the Preamp audio path. Capacitor dielectric absorption, transistor charge storage and nonlinear magnetic effects remain separately testable extensions.
