@@ -310,10 +310,15 @@ int main()
         return 40;
 
     double inputOutputCorrelation = 0.0;
-    double outputPeak = 0.0;
-    double outputTrough = 0.0;
+    double inputSquares = 0.0;
+    double outputSquares = 0.0;
+    double outputSum = 0.0;
+    double outputPeak = -std::numeric_limits<double>::infinity();
+    double outputTrough = std::numeric_limits<double>::infinity();
     constexpr int ampSamples = 480;
+    constexpr int measurementStart = 48;
     constexpr double inputAmplitude = 0.005;
+    int measuredSamples = 0;
     for (int sample = 0; sample < ampSamples; ++sample)
     {
         const double input = inputAmplitude *
@@ -325,20 +330,31 @@ int main()
             return 42;
 
         const double output = amplifier.nodeVoltage(ampOutput);
-        if (sample >= 48)
+        if (sample >= measurementStart)
         {
             inputOutputCorrelation += input * output;
+            inputSquares += input * input;
+            outputSquares += output * output;
+            outputSum += output;
             outputPeak = std::max(outputPeak, output);
             outputTrough = std::min(outputTrough, output);
+            ++measuredSamples;
         }
     }
 
-    if (!(outputPeak > 0.01 && outputTrough < -0.01))
+    const double outputMean = outputSum / measuredSamples;
+    const double outputAcRms = std::sqrt(std::max(
+        0.0, outputSquares / measuredSamples - outputMean * outputMean));
+    const double inputRms = std::sqrt(inputSquares / measuredSamples);
+    const double measuredVoltageGain = outputAcRms / inputRms;
+
+    if (!(outputPeak - outputTrough > 0.02 && measuredVoltageGain > 2.0))
     {
         std::cerr.precision(17);
-        std::cerr << "CE output range: peak=" << outputPeak
+        std::cerr << "CE AC measurement: peak=" << outputPeak
                   << " trough=" << outputTrough
-                  << " correlation=" << inputOutputCorrelation << "\n";
+                  << " gain=" << measuredVoltageGain
+                  << " correlation=" << inputOutputCorrelation << "\\n";
         return 43;
     }
     if (!(inputOutputCorrelation < 0.0))
