@@ -102,3 +102,16 @@ The amplifier fixtures are engineering test topologies. They are not claims of a
 5. Measure CPU cost, oversampling needs, denormal behavior and stability at 44.1/48/96/192 kHz before release.
 
 The component and model libraries remain independent of the VST3 wrapper so validated models can later be reused by PG Optical Compressor.
+
+
+## Experimental VST3 integration
+
+The experimental Windows VST3 currently uses `FixedCommonEmitterStage`, one independent instance per stereo channel. The host exposes Bypass, Input and Output controls. Input ranges from -12 to +18 dB and Output from -12 to +12 dB; both default to 0 dB. These parameters are serialized in the processor state and restored into the edit controller, including the standard VST3 bypass-persistence behavior.
+
+The DSP signal is scaled into the stage's internal voltage range, processed through the transistor circuit and scaled back to the host's floating-point audio range. The current stage uses provisional transistor parameters selected for stable engineering tests. They are not calibrated to a particular transistor datasheet or measured hardware.
+
+Important scope boundary: only the fixed common-emitter stage currently processes plugin audio. The magnetic transformer / Preisach core block is separately implemented and tested but is not yet in the VST3 signal path. The plugin is therefore an audible experimental circuit stage, not a completed hardware emulation or final PG Preamp schematic.
+
+The generic MNA solver remains an offline reference tool. The fixed stage uses a fixed-size, stack-only solve and no dynamic allocation in its per-sample method. Automation is currently read at the processing-block boundary; sample-offset-accurate parameter ramps remain future work.
+
+Latest successful validation: Windows x64 build, 51 component/network tests and Steinberg VST3 validator all passed in [GitHub Actions run 41570556094](https://github.com/Gastonpg/PG-Preamp/actions/runs/41570556094).
