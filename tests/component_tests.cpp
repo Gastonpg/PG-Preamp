@@ -882,6 +882,13 @@ int main()
     // Bias network tolerance corners: all 16 combinations of +/-5% on the
     // divider, collector resistor and emitter resistor must remain forward-
     // active through the nominal +18 dB input envelope.
+    double worstToleranceMinimumCollectorCurrent =
+        std::numeric_limits<double>::infinity();
+    double worstToleranceMinimumVce =
+        std::numeric_limits<double>::infinity();
+    double minimumToleranceBiasCollectorCurrent =
+        std::numeric_limits<double>::infinity();
+    double maximumToleranceBiasCollectorCurrent = 0.0;
     for (int corner = 0; corner < 16; ++corner)
     {
         auto toleranceParameters =
@@ -903,9 +910,16 @@ int main()
             !(toleranceStage.biasOperatingPoint().collectorCurrentAmps > 0.0) ||
             !(toleranceStage.biasOperatingPoint().collectorEmitterVolts > 1.0))
             return 133;
+        minimumToleranceBiasCollectorCurrent = std::min(
+            minimumToleranceBiasCollectorCurrent,
+            toleranceStage.biasOperatingPoint().collectorCurrentAmps);
+        maximumToleranceBiasCollectorCurrent = std::max(
+            maximumToleranceBiasCollectorCurrent,
+            toleranceStage.biasOperatingPoint().collectorCurrentAmps);
 
         double minimumCornerCollectorCurrent =
             std::numeric_limits<double>::infinity();
+        double minimumCornerVce = std::numeric_limits<double>::infinity();
         for (int sample = 0; sample < classAHeadroomSamples; ++sample)
         {
             const double input = maximumNominalInputPeakVolts *
@@ -917,12 +931,24 @@ int main()
                 return 134;
             minimumCornerCollectorCurrent = std::min(
                 minimumCornerCollectorCurrent, result.collectorCurrentAmps);
+            minimumCornerVce = std::min(
+                minimumCornerVce, result.collectorEmitterVolts);
         }
-        if (!std::isfinite(minimumCornerCollectorCurrent))
+        if (!std::isfinite(minimumCornerCollectorCurrent) ||
+            !std::isfinite(minimumCornerVce))
             return 135;
+        worstToleranceMinimumCollectorCurrent = std::min(
+            worstToleranceMinimumCollectorCurrent, minimumCornerCollectorCurrent);
+        worstToleranceMinimumVce = std::min(
+            worstToleranceMinimumVce, minimumCornerVce);
     }
-    std::cout << "PG A Stage M1: 16 bias-network +/-5% tolerance corners "
-              << "remain Class-A-conducting at nominal maximum input\\n";
+    std::cout << "PG A Stage M1 +/-5% tolerance sweep (16 corners): bias Ic="
+              << minimumToleranceBiasCollectorCurrent * 1000.0 << ".."
+              << maximumToleranceBiasCollectorCurrent * 1000.0
+              << " mA, worst-cycle min Ic="
+              << worstToleranceMinimumCollectorCurrent * 1000.0
+              << " mA, worst-cycle min Vce="
+              << worstToleranceMinimumVce << " V\\n";
 
     // Measure distortion at two useful drive levels with an integer-cycle
     // DFT window. This is a deterministic circuit-model regression, not a
