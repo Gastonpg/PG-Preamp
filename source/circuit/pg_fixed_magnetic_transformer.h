@@ -55,7 +55,7 @@ public:
         double secondaryInducedVoltageVolts = 0.0;
     };
 
-    bool prepare(double sampleRate, const Parameters& parameters = Parameters{}) noexcept
+    bool prepare(double sampleRate, const Parameters& parameters) noexcept
     {
         if (!validPositive(sampleRate) ||
             !validPositive(parameters.saturationFluxDensityTesla) ||
@@ -108,6 +108,7 @@ public:
         core_ = {};
         previousPrimaryCurrentAmps_ = 0.0;
         previousSecondaryCurrentAmps_ = 0.0;
+        previousFluxDensityTesla_ = 0.0;
         lastResult_ = {};
         lastResult_.converged = configured_;
     }
@@ -169,6 +170,7 @@ public:
         }
 
         core_ = evaluation.nextCore;
+        previousFluxDensityTesla_ = evaluation.fluxDensityTesla;
         previousPrimaryCurrentAmps_ = evaluation.primaryCurrentAmps;
         previousSecondaryCurrentAmps_ = evaluation.secondaryCurrentAmps;
 
