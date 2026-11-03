@@ -58,6 +58,12 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     bypass_ = bypassValue >= 0.5f;
     inputGainNormalized_ = std::clamp(static_cast<double>(inputValue), 0.0, 1.0);
     outputGainNormalized_ = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
+    inputGainTargetLinear_ =
+        decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
+    outputGainTargetLinear_ =
+        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
+    inputGainCurrentLinear_ = inputGainTargetLinear_;
+    outputGainCurrentLinear_ = outputGainTargetLinear_;
     aStageEnabled_ = aStageValue >= 0.5f;
     ironEnabled_ = ironValue >= 0.5f;
 
@@ -96,6 +102,8 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
     aStageMix_ = aStageEnabled_ ? 1.0 : 0.0;
     ironMix_ = ironEnabled_ ? 1.0 : 0.0;
     bypassMix_ = bypass_ ? 1.0 : 0.0;
+    inputGainCurrentLinear_ = inputGainTargetLinear_;
+    outputGainCurrentLinear_ = outputGainTargetLinear_;
 
     PGAudio::Circuit::EbersMollNpn transistor;
     transistor.prepare(1.0e-14, 120.0, 2.0, 300.15);
@@ -190,9 +198,13 @@ void PGPreampProcessor::applyParameter(Vst::ParamID id, Vst::ParamValue value) n
             break;
         case kPGPreampInputGainId:
             inputGainNormalized_ = value;
+            inputGainTargetLinear_ =
+                decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
             break;
         case kPGPreampOutputGainId:
             outputGainNormalized_ = value;
+            outputGainTargetLinear_ =
+                decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
             break;
         case kPGPreampAStageId:
             aStageEnabled_ = value >= 0.5;
@@ -311,11 +323,6 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
         }
     }
 
-    double inputGainLinear =
-        decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
-    double outputGainLinear =
-        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
-
     for (int32 sample = 0; sample < data.numSamples; ++sample)
     {
         // Apply all parameter points scheduled at this sample offset.
@@ -325,12 +332,6 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
             while (cursor.hasPoint && cursor.nextOffset <= sample)
             {
                 applyParameter(cursor.id, cursor.nextValue);
-                if (cursor.id == kPGPreampInputGainId)
-                    inputGainLinear =
-                        decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
-                else if (cursor.id == kPGPreampOutputGainId)
-                    outputGainLinear =
-                        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
 
                 ++cursor.nextPoint;
                 cursor.hasPoint = false;
@@ -355,6 +356,10 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
         ironMix_ += mixSmoothingCoefficient_ * (targetIronMix - ironMix_);
         aStageMix_ += mixSmoothingCoefficient_ * (targetAStageMix - aStageMix_);
         bypassMix_ += mixSmoothingCoefficient_ * (targetBypassMix - bypassMix_);
+        inputGainCurrentLinear_ += mixSmoothingCoefficient_ *
+            (inputGainTargetLinear_ - inputGainCurrentLinear_);
+        outputGainCurrentLinear_ += mixSmoothingCoefficient_ *
+            (outputGainTargetLinear_ - outputGainCurrentLinear_);
 
         for (int32 channel = 0; channel < channels && channel < 2; ++channel)
         {
@@ -388,7 +393,8 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
             // Input gain follows the input transformer, matching the basic
             // 1073 gain-staging order more closely than driving the transformer
             // with the gain knob itself.
-            const float stageInput = ironOutput * static_cast<float>(inputGainLinear);
+            const float stageInput =
+                ironOutput * static_cast<float>(inputGainCurrentLinear_);
 
             // Keep A Stage warm while bypassed. Its dry path uses the measured
             // small-signal gain as makeup so toggling the colour block does not
@@ -406,7 +412,7 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                 (stageWet - stageDry) * static_cast<float>(aStageMix_);
 
             const float processedSample = stageOutput *
-                static_cast<float>(kOutputFullScalePerVolt * outputGainLinear);
+                static_cast<float>(kOutputFullScalePerVolt * outputGainCurrentLinear_);
             const float finalSample = processedSample +
                 (sourceSample - processedSample) * static_cast<float>(bypassMix_);
             destination[sample] = std::isfinite(finalSample)
