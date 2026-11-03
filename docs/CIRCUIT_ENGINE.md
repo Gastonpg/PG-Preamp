@@ -2,33 +2,45 @@
 
 ## Development principle
 
-Build and validate circuit elements individually before connecting them into a complete signal path. Each element must have:
+Build and validate circuit elements individually before connecting them into a complete signal path. Every element needs a documented physical interpretation, SI-unit parameters where practical, deterministic state/reset behavior, response and stability tests, and measured CPU cost before real-time integration.
 
-- a documented physical interpretation and assumptions;
-- parameters expressed in physical units where practical;
-- deterministic state initialization and reset behavior;
-- tests for expected response, stability, and edge cases;
-- a measured CPU cost before real-time integration.
+A component is not accepted merely because it sounds pleasing. Its behavior must be explainable and testable.
 
-A component is not accepted merely because it sounds pleasing. Its behavior must first be explainable and testable.
+## Validated foundations in this branch
 
-## First component: passive RC stage
+### Passive RC stage
 
-```text
-series resistor R -> node -> capacitor C to ground
-                         |
-                       output
-```
+A series resistor feeding a shunt capacitor, with capacitor voltage as output. For the ideal network:
 
-The capacitor voltage is the output. The analog time constant is `tau = R * C` and the -3 dB corner is `fc = 1 / (2*pi*R*C)`. The discrete-time update uses the exact zero-order-hold coefficient `alpha = 1 - exp(-1/(fs*R*C))`, then `y[n] = y[n-1] + alpha*(x[n]-y[n-1])`.
+- \`tau = R * C\`
+- \`fc = 1 / (2*pi*R*C)\`
+- \`alpha = 1 - exp(-1/(fs*R*C))\`
+- \`y[n] = y[n-1] + alpha*(x[n]-y[n-1])\`
 
-This is a deliberately small first step: it validates physical units, sample-rate preparation, state handling, and a repeatable test harness. It is not yet intended to color the audible PG Preamp signal path.
+The exact zero-order-hold coefficient is used. Tests check time constant, cutoff, step response, stability at common sample rates and measured -3 dB response.
+
+### Capacitor with ESR and leakage
+
+A current-driven capacitor stores dielectric voltage and includes series equivalent resistance (ESR) plus parallel leakage resistance. With current held constant during one sample, leakage recovery uses the exact exponential solution. Stored charge, ESR drop and leakage time constant remain explicit. Dielectric absorption is deferred until it can be represented as independently tested relaxation branches.
+
+### Resistor and Johnson-Nyquist noise
+
+The model exposes thermal-noise density:
+
+\`en = sqrt(4 * kB * T * R)\` V/sqrt(Hz)
+
+For one-sided bandwidth \`B\`, integrated RMS noise is:
+
+\`vn,rms = en * sqrt(B)\`
+
+An optional deterministic noise source produces a low-cost Gaussian approximation for component experiments. It is not automatically inserted into the plugin signal path. Noise must be assigned to a physical component and bandwidth to avoid arbitrary or double-counted hiss.
 
 ## Next candidates
 
-1. Validate the RC stage against frequency-response and transient reference calculations.
-2. Add passive networks built from validated R/C elements.
-3. Add transformer behavior only with a documented model and tests (nonlinear magnetization, hysteresis/core loss as appropriate).
-4. Add the active gain stage after deciding its actual topology and operating assumptions.
+1. Add dielectric-absorption behavior as independently testable relaxation branches.
+2. Add inductors with winding resistance and core-loss assumptions.
+3. Build passive networks from validated R/C/L components.
+4. Develop transformer models only with documented winding/core parameters and nonlinear assumptions.
+5. Define and test the active gain-stage topology before real-time integration.
 
-The engine must remain independent of the VST3 wrapper so it can later be reused by PG Optical Compressor.
+The engine remains independent of the VST3 wrapper so it can later be reused by PG Optical Compressor.
