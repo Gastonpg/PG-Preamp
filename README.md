@@ -12,13 +12,14 @@ This branch establishes a component-by-component workflow without changing the s
 - Resistor Johnson-Nyquist noise model and deterministic test source.
 - Current-driven capacitor model with ESR and leakage resistance.
 - Linear inductor model with winding resistance.
+- Static Ebers-Moll NPN transistor primitive with device-level tests.
 - GitHub Actions compiles the plugin and runs standalone component tests.
 
-These models are not connected to the Preamp audio path yet, so they do not change its sound. The component suite also checks analytical RL and RC transient/frequency responses.
+These models are not connected to the Preamp audio path yet, so they do not change its sound.
 
 ## Build and test
 
-Pushes to this branch run **Build PG Preamp VST3**. The workflow builds the VST3, compiles pg_component_tests, runs CTest, and packages the plugin as PG-Preamp-Windows-x64.
+Pushes to this branch run Build PG Preamp VST3. The workflow builds the VST3, compiles pg_component_tests, runs CTest, and packages the plugin as PG-Preamp-Windows-x64.
 
 No local compiler or SDK installation is required for the cloud build.
 
@@ -35,9 +36,9 @@ See docs/CIRCUIT_ENGINE.md and docs/REFERENCE_ARCHITECTURE.md.
 ## Planned progression
 
 1. Validate passive R/C/L elements and networks.
-2. Develop transformer models with explicit nonlinear and magnetic assumptions.
-3. Define and model the Preamp's active gain-stage topology.
-4. Integrate each validated stage and compare against reference behavior.
+2. Calibrate active device models from data sheets/SPICE references.
+3. Develop transformer models with explicit nonlinear and magnetic assumptions.
+4. Design and validate the Preamp's active gain-stage topology.
 5. Reuse the engine in PG Optical Compressor.
 
 This project is an original PG Audio design, not a claim of exact emulation of commercial hardware.
