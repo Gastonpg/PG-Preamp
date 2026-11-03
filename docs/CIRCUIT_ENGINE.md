@@ -143,7 +143,7 @@ The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled b
 
 Block switches crossfade over 5 ms. The circuit blocks continue running internally while their audible path is disabled, preserving the state so toggling them does not connect a cold model mid-waveform. Input and Output gain changes are also smoothed over 5 ms. VST3 parameter events are consumed at their sample offsets rather than taking only the final value in the processing block.
 
-The processor supports 32-bit audio; 64-bit processing is not implemented. The latest Windows x64 build passed 47 Steinberg VST3 validator tests with 0 failures, including the sample-accuracy automation check, and the component/network test executable passed on Linux and Windows. Download the [PG-Preamp-Windows-x64 artifact](https://github.com/Gastonpg/PG-Preamp/actions/runs/41580547955/artifacts/13205751219) or inspect the [successful build log](https://github.com/Gastonpg/PG-Preamp/actions/runs/41580547955).
+The processor supports 32-bit audio; 64-bit processing is not implemented. The latest Windows x64 build passed 47 Steinberg VST3 validator tests with 0 failures, including the sample-accuracy automation check, and the component/network test executable passed on Linux and Windows. Download the [PG-Preamp-Windows-x64 artifact](https://github.com/Gastonpg/PG-Preamp/actions/runs/41580552568/artifacts/13206340355) or inspect the [successful build log](https://github.com/Gastonpg/PG-Preamp/actions/runs/41580552568).
 
 ## Remaining milestones
 
