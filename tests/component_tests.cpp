@@ -296,6 +296,107 @@ int main()
         }
     }
 
+    // Optional Gummel-Poon-style terms: high-current beta roll-off and
+    // explicit BE / BC leakage branches. They are tested here but remain
+    // disabled in the current PG A Stage M1 voicing until device fitting.
+    BjtAdvancedParameters extendedParameters = detailedParameters;
+    extendedParameters.baseEmitterLeakageSaturationCurrentAmps = 1.0e-14;
+    extendedParameters.baseCollectorLeakageSaturationCurrentAmps = 1.0e-12;
+    extendedParameters.forwardBetaRollOffCurrentAmps = 2.0e-3;
+    extendedParameters.reverseBetaRollOffCurrentAmps = 1.0e-3;
+    EbersMollNpn extendedTransistor;
+    extendedTransistor.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    extendedTransistor.setAdvancedParameters(extendedParameters);
+
+    const double extendedVoltages[3] = {0.64, 0.35, 0.0};
+    const auto extendedEvaluation = extendedTransistor.evaluateWithDerivatives(
+        extendedVoltages[0], extendedVoltages[1], extendedVoltages[2]);
+    if (!near(extendedEvaluation.currents.baseAmps +
+              extendedEvaluation.currents.collectorAmps +
+              extendedEvaluation.currents.emitterAmps, 0.0, 1.0e-12))
+        return 123;
+
+    constexpr double extendedDerivativeStep = 1.0e-7;
+    for (int column = 0; column < 3; ++column)
+    {
+        double plusVoltage[3] = {
+            extendedVoltages[0], extendedVoltages[1], extendedVoltages[2]
+        };
+        plusVoltage[column] += extendedDerivativeStep;
+        const auto plus = extendedTransistor.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+        plusVoltage[column] -= 2.0 * extendedDerivativeStep;
+        const auto minus = extendedTransistor.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+
+        const double plusCurrent[3] = {
+            plus.currents.baseAmps, plus.currents.collectorAmps, plus.currents.emitterAmps
+        };
+        const double minusCurrent[3] = {
+            minus.currents.baseAmps, minus.currents.collectorAmps, minus.currents.emitterAmps
+        };
+        for (int row = 0; row < 3; ++row)
+        {
+            const double numericalG = (plusCurrent[row] - minusCurrent[row]) /
+                                      (2.0 * extendedDerivativeStep);
+            if (!near(extendedEvaluation.conductance[row][column], numericalG,
+                      std::max(1.0e-9, std::abs(numericalG) * 2.0e-4)))
+                return 124;
+        }
+    }
+
+    // A base-collector leakage diode must exchange current between B and C,
+    // not incorrectly route it through the emitter branch.
+    EbersMollNpn noCollectorLeakage;
+    noCollectorLeakage.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    BjtAdvancedParameters noLeakageParameters = detailedParameters;
+    noLeakageParameters.baseCollectorLeakageSaturationCurrentAmps = 0.0;
+    noCollectorLeakage.setAdvancedParameters(noLeakageParameters);
+    const auto withoutBcLeak = noCollectorLeakage.evaluate(0.65, 0.0, 0.0);
+
+    EbersMollNpn withCollectorLeakage;
+    withCollectorLeakage.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    BjtAdvancedParameters bcLeakageParameters = noLeakageParameters;
+    bcLeakageParameters.baseCollectorLeakageSaturationCurrentAmps = 1.0e-12;
+    bcLeakageParameters.baseCollectorLeakageEmissionCoefficient = 2.0;
+    withCollectorLeakage.setAdvancedParameters(bcLeakageParameters);
+    const auto withBcLeak = withCollectorLeakage.evaluate(0.65, 0.0, 0.0);
+    const double expectedBcLeak = 1.0e-12 * std::expm1(
+        0.65 / (2.0 * withCollectorLeakage.thermalVoltage()));
+    if (!near(withBcLeak.baseAmps - withoutBcLeak.baseAmps,
+              expectedBcLeak, expectedBcLeak * 1.0e-5) ||
+        !near(withBcLeak.collectorAmps - withoutBcLeak.collectorAmps,
+              -expectedBcLeak, expectedBcLeak * 1.0e-5) ||
+        !near(withBcLeak.emitterAmps - withoutBcLeak.emitterAmps,
+              0.0, expectedBcLeak * 1.0e-5))
+        return 125;
+
+    // Finite IKF reduces common-emitter beta as collector current rises.
+    EbersMollNpn noRollOff;
+    noRollOff.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    BjtAdvancedParameters noRollOffParameters = detailedParameters;
+    noRollOffParameters.forwardBetaRollOffCurrentAmps =
+        std::numeric_limits<double>::infinity();
+    noRollOff.setAdvancedParameters(noRollOffParameters);
+
+    EbersMollNpn withRollOff;
+    withRollOff.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    BjtAdvancedParameters rollOffParameters = detailedParameters;
+    rollOffParameters.forwardBetaRollOffCurrentAmps = 2.0e-3;
+    withRollOff.setAdvancedParameters(rollOffParameters);
+    const auto lowCurrent = withRollOff.evaluate(0.60, 5.0, 0.0);
+    const auto highCurrent = withRollOff.evaluate(0.68, 5.0, 0.0);
+    const auto highCurrentWithoutRollOff = noRollOff.evaluate(0.68, 5.0, 0.0);
+    const double lowBeta = lowCurrent.collectorAmps / lowCurrent.baseAmps;
+    const double highBeta = highCurrent.collectorAmps / highCurrent.baseAmps;
+    const double unrolledHighBeta =
+        highCurrentWithoutRollOff.collectorAmps /
+        highCurrentWithoutRollOff.baseAmps;
+    if (!(highCurrent.collectorAmps > lowCurrent.collectorAmps) ||
+        !(highBeta < lowBeta) ||
+        !(highBeta < unrolledHighBeta * 0.8))
+        return 126;
+
     // Early voltage must increase forward-active collector current with VCE.
     const auto lowVce = detailedTransistor.evaluate(0.67, 2.0, 0.0);
     const auto highVce = detailedTransistor.evaluate(0.67, 8.0, 0.0);
