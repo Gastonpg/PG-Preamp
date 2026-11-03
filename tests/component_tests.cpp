@@ -23,6 +23,23 @@ bool near(double a, double b, double tolerance)
 {
     return std::abs(a - b) <= tolerance;
 }
+
+template <std::size_t SampleCount>
+double dftAmplitude(const std::array<double, SampleCount>& samples, int bin)
+{
+    double real = 0.0;
+    double imaginary = 0.0;
+    constexpr double pi = 3.14159265358979323846;
+    for (std::size_t n = 0; n < SampleCount; ++n)
+    {
+        const double phase = 2.0 * pi * bin * static_cast<double>(n) /
+                             static_cast<double>(SampleCount);
+        real += samples[n] * std::cos(phase);
+        imaginary -= samples[n] * std::sin(phase);
+    }
+    return (2.0 / static_cast<double>(SampleCount)) *
+           std::sqrt(real * real + imaginary * imaginary);
+}
 }
 
 int main()
@@ -742,25 +759,11 @@ int main()
                     result.output;
         }
 
-        const auto amplitudeAtBin = [&](int bin)
-        {
-            double real = 0.0;
-            double imaginary = 0.0;
-            for (int n = 0; n < measuredCount; ++n)
-            {
-                const double phase = 2.0 * pi * bin * n / measuredCount;
-                real += measuredOutput[static_cast<std::size_t>(n)] * std::cos(phase);
-                imaginary -= measuredOutput[static_cast<std::size_t>(n)] * std::sin(phase);
-            }
-            return (2.0 / measuredCount) * std::sqrt(
-                real * real + imaginary * imaginary);
-        };
-
-        const double fundamental = amplitudeAtBin(100);
+        const double fundamental = dftAmplitude(measuredOutput, 100);
         double harmonicPower = 0.0;
         for (int harmonic = 2; harmonic <= 23; ++harmonic)
         {
-            const double amplitude = amplitudeAtBin(100 * harmonic);
+            const double amplitude = dftAmplitude(measuredOutput, 100 * harmonic);
             harmonicPower += amplitude * amplitude;
         }
         return fundamental > 0.0 ? std::sqrt(harmonicPower) / fundamental
