@@ -268,7 +268,6 @@ private:
         const double m = std::clamp(grading, 0.0, 0.95);
         const double forwardCoefficient = 0.5;
         const double transitionVoltage = forwardCoefficient * potential;
-        const double transitionArgument = 1.0 - forwardCoefficient;
 
         const auto chargeAndCapAt = [c0, potential, m](double v)
         {
