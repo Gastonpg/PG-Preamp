@@ -77,15 +77,33 @@ It uses dynamically sized matrices and performs nonlinear iterations. It is a re
 
 At prepare/reset time it solves the DC operating point and initializes the coupling-capacitor voltages from that solution. This prevents a false output transient from an inconsistent initial bias. The topology is a test fixture and a first audible A Stage, not the final PG Preamp schematic.
 
+At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.1316x small-signal voltage gain. The processor uses this as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
+
 ### Fixed loaded Iron transformer
 
 `FixedMagneticTransformerStage` is the real-time reduced-order transformer used by the Iron switch. It models a source resistance, primary winding resistance and leakage inductance, a magnetizing field from Ampere's law, a secondary winding with resistance/leakage, and a finite load.
 
-For a candidate core field H, the solver advances a smooth stateful saturation/hysteresis macro-model, computes the core flux-density change, and derives primary/secondary induced voltages using Faraday's law. It solves the loaded primary/secondary current relation with a fixed-size scalar Newton iteration. The core law contains a reversible-permeability knee, saturation and a direction-dependent coercive offset with finite magnetic relaxation. Its state is continuous between samples, avoiding the flux jumps that would result from routing discrete relay-domain steps straight into audio.
+The reference is the 1073's **10468 microphone-input role**, not the 31267 line-input transformer or the LO1166 output transformer. AMS Neve's own documentation identifies those three devices by role. The original Marinair 10468's detailed winding/core measurements are not publicly specified in the documentation available for this project.
 
-This is a compact real-time macromodel, not a full Preisach implementation or a calibrated model of a named transformer. The winding, core and relaxation defaults are provisional. The current real-time path does not yet include a calibrated eddy-current loss branch, interwinding capacitance, distributed winding capacitance or measured parasitics.
+To establish a reproducible electrical target, the macro-model uses the published Carnhill VTB9045 low-level microphone-transformer configuration as a reference proxy. Its design guide specifies:
+- a 1+1 : 2+2 turns arrangement (overall voltage turns ratio 1:2);
+- parallel primary rated at 300 ohms and parallel secondary rated at 1.2 kilohms for +6 dB voltage gain;
+- primary coil resistances 24 + 24 ohms and secondary coil resistances 130 + 130 ohms. In the parallel/parallel configuration these reduce to effective winding DCRs of 12 ohms and 65 ohms.
 
-The fixed transformer is prepared outside the audio callback. Its per-sample method uses fixed scalar state and no dynamic allocation or general-purpose MNA solver.
+The real-time model therefore uses 1:2 turns ratio, 150-ohm source resistance, 12-ohm primary DCR, 65-ohm secondary DCR and a 1.2-kilohm secondary load. The 150-ohm source is a nominal microphone-source assumption; it is not an internal Carnhill value.
+
+Absolute effective turns, core geometry, saturation, relative permeability, coercive field, branch-memory time constant and leakage inductance are macro-model values, not measured original Marinair data. They are kept explicit in the code and marked provisional. The implementation is therefore a data-anchored 10468-role model, not an exact replica of an original 10468 or a claim that all of its core properties have been calibrated.
+
+The core model now uses a smooth stateful branch-memory variable and continuous magnetization relaxation. The earlier hard `branchDirection` sign flip was removed because it produced a discontinuous change in the target flux when the audio waveform reversed slope. That discontinuity could create noise-like broadband artifacts. The detailed discrete Preisach core remains an offline reference and is not fed directly into the audio callback.
+
+At 48 kHz, with a 5 mV, 1 kHz sine, the current VTB9045-reference configuration measures:
+- small-signal gain: 1.2545x before processor level matching;
+- low-level THD: 5.94e-7 ratio (approximately 0.000059%);
+- largest of the selected non-harmonic DFT bins: 6.52e-7 of the fundamental (approximately -123.7 dBc).
+
+Those figures are deterministic synthetic single-tone tests of this macro-model. They are not measurements of a physical VTB9045 or Marinair 10468 and do not quantify noise from a real microphone/recording. The model does not inject a random white-noise source. Transformer thermal-noise contribution is not yet modelled; audible noise already present in an input recording can still pass through the signal path.
+
+The transformer is prepared outside the audio callback. Its per-sample method uses fixed scalar state and no dynamic allocation or general-purpose MNA solver.
 
 ## Verified test circuits
 
@@ -100,7 +118,7 @@ The automated component/network suite checks:
 7. A 12 V common-emitter circuit with bias divider, collector/emitter resistors and nonlinear transistor, solving its DC operating point.
 8. The common-emitter stage with AC coupling and load, verifying gain and phase inversion in generic MNA.
 9. The fixed common-emitter stage, verifying gain/phase and comparing its measured gain with the generic MNA reference.
-10. The fixed loaded transformer: zero-signal startup, loaded audio-band transfer, bounded high-level core flux and 44.1/48/96/192 kHz operation.
+10. The fixed loaded transformer: zero-signal startup, 1:2 turns ratio, loaded audio-band transfer, low-level harmonic and non-harmonic spectrum, bounded high-level core flux and 44.1/48/96/192 kHz operation.
 
 The amplifier fixtures are engineering test topologies. They are not claims of an exact 1073 circuit.
 
@@ -110,21 +128,24 @@ The experimental Windows x64 VST3 uses one independent A Stage and Iron transfor
 
 The signal path is:
 
-1. Host audio is scaled to the circuit's internal voltage range and adjusted by Input Gain.
-2. **Iron**, when enabled, passes the signal through the loaded magnetic input-transformer model.
-3. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit.
-4. Output Gain maps the circuit output back to the host audio range.
+1. Host audio is scaled to the circuit's internal microphone-level voltage range.
+2. **Iron**, when enabled, passes the signal through the loaded 10468-role input-transformer macro-model. The dry path is normalized against the measured small-signal macro-model gain so engaging Iron is not simply a volume increase.
+3. **Input Gain** is applied after the input transformer, following the basic 1073 gain-staging order more closely.
+4. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit. When disabled, its dry path uses the measured 4.1316x small-signal gain for level matching.
+5. **Output Gain** maps the circuit output back to the host audio range.
 
 The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled by default; Iron is disabled by default. All five control values are saved in the processor state. Older three-value states remain readable and default to A Stage enabled / Iron disabled.
 
-The processor supports 32-bit audio; 64-bit processing is not implemented. Parameters are currently read at the processing-block boundary, so sample-offset-accurate automation remains future work. The Steinberg VST3 validator reports 47 passed tests and 0 failed tests on the current build. The component/network test executable also passes on Linux and Windows.
+Block switches crossfade over 5 ms. The circuit blocks continue running internally while their audible path is disabled, preserving the state so toggling them does not connect a cold model mid-waveform. Input and Output gain changes are also smoothed over 5 ms. VST3 parameter events are consumed at their sample offsets rather than taking only the final value in the processing block.
+
+The processor supports 32-bit audio; 64-bit processing is not implemented. The Steinberg VST3 validator passed 47 tests with 0 failures on the integrated build before the latest gain smoothing changes; a new Windows run is validating those additions. The component/network test executable passes on Linux and Windows.
 
 ## Remaining milestones
 
-1. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
-2. Select and characterize an input transformer; calibrate turns, winding resistance, leakage, magnetizing inductance, B-H response and losses.
-3. Add an explicit calibrated eddy-current/core-loss branch and winding/interwinding capacitances when supported by data.
-4. Implement sample-offset-accurate automation and add transition smoothing where parameter changes alter circuit topology.
+1. Characterize a physical 10468/VTB9045 reference or obtain measured B-H, winding impedance and frequency-response curves; fit the effective core and leakage parameters to the measured data.
+2. Add a calibrated thermal-noise and loss model only if a trustworthy transformer/winding dataset supports its parameters.
+3. Decide whether to add the separate 31267 line-input transformer and LO1166 output-transformer models as additional modes.
+4. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
 5. Profile real-time CPU cost, oversampling requirements, denormal behavior and stability on the target PC at 44.1/48/96/192 kHz.
 6. Refine the temporary rack editor and add a properly metered output display.
 
