@@ -403,6 +403,6 @@ int main()
     if (!(inputOutputCorrelation < 0.0))
         return 44;
 
-    std::cout << "PG Circuit Engine: R, L, C, NPN, MNA and common-emitter audio-stage tests passed.\n";
+    std::cout << "PG Circuit Engine: R, L, C, NPN, coupled windings, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
 }
