@@ -23,6 +23,7 @@ int main()
     using PGAudio::Circuit::Capacitor;
     using PGAudio::Circuit::Inductor;
     using PGAudio::Circuit::EbersMollNpn;
+    using PGAudio::Circuit::MnaCircuit;
 
     RcStage rc;
     rc.prepare(48000.0, 10000.0, 10.0e-9);
