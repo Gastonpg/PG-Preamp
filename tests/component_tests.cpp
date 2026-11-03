@@ -950,6 +950,69 @@ int main()
               << " mA, worst-cycle min Vce="
               << worstToleranceMinimumVce << " V\\n";
 
+    // Alternate device reference: Cordell's sample-derived BC550C model.
+    // This is characterized independently; it does not replace PG A Stage M1.
+    auto cordellBc550c =
+        PGAudio::Circuit::PgAStageBc550CReference::makeTransistor();
+    if (!near(cordellBc550c.forwardBeta(), 689.0, 1.0e-9) ||
+        !near(cordellBc550c.reverseBeta(), 12.2, 1.0e-9) ||
+        !near(cordellBc550c.saturationCurrentAmps(), 45.0e-15, 1.0e-24))
+        return 136;
+
+    FixedCommonEmitterStage bc550cReferenceStage;
+    if (!bc550cReferenceStage.prepare(
+            48000.0,
+            PGAudio::Circuit::PgAStageBc550CReference::makeStageParameters(),
+            cordellBc550c))
+        return 137;
+    const auto& bc550cBias = bc550cReferenceStage.biasOperatingPoint();
+    if (!bc550cBias.converged ||
+        !(bc550cBias.collectorCurrentAmps > 0.0) ||
+        !(bc550cBias.collectorEmitterVolts > 1.0) ||
+        std::abs(bc550cBias.collectorCurrentAmps +
+                 bc550cBias.baseCurrentAmps +
+                 bc550cBias.emitterCurrentAmps) > 1.0e-9)
+        return 138;
+
+    double bc550cMinimumCollectorCurrent =
+        std::numeric_limits<double>::infinity();
+    double bc550cMinimumVce =
+        std::numeric_limits<double>::infinity();
+    double bc550cInputSquares = 0.0;
+    double bc550cOutputSquares = 0.0;
+    constexpr int bc550cSurveySamples = 4800;
+    constexpr int bc550cDiscardSamples = 480;
+    for (int sample = 0; sample < bc550cSurveySamples; ++sample)
+    {
+        const double input = 0.04 *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        FixedCommonEmitterStage::ProcessResult result;
+        if (!bc550cReferenceStage.processSample(static_cast<float>(input), result) ||
+            !(result.collectorCurrentAmps > 0.0) ||
+            !(result.collectorEmitterVolts > 0.2))
+            return 139;
+        bc550cMinimumCollectorCurrent = std::min(
+            bc550cMinimumCollectorCurrent, result.collectorCurrentAmps);
+        bc550cMinimumVce = std::min(
+            bc550cMinimumVce, result.collectorEmitterVolts);
+        if (sample >= bc550cDiscardSamples)
+        {
+            bc550cInputSquares += input * input;
+            bc550cOutputSquares +=
+                static_cast<double>(result.output) * result.output;
+        }
+    }
+    const double bc550cMeasuredGain = std::sqrt(
+        bc550cOutputSquares / bc550cInputSquares);
+    std::cout << "Cordell BC550C reference A Stage: bias Ic="
+              << bc550cBias.collectorCurrentAmps * 1000.0
+              << " mA, Vce=" << bc550cBias.collectorEmitterVolts
+              << " V, min-cycle Ic="
+              << bc550cMinimumCollectorCurrent * 1000.0
+              << " mA, min-cycle Vce=" << bc550cMinimumVce
+              << " V, 1 kHz gain at 40 mV="
+              << bc550cMeasuredGain << "x\\n";
+
     // Measure distortion at two useful drive levels with an integer-cycle
     // DFT window. This is a deterministic circuit-model regression, not a
     // physical hardware measurement.
