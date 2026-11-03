@@ -13,32 +13,56 @@ struct BjtTerminalCurrents
     double emitterAmps = 0.0;
 };
 
-// Static Ebers-Moll NPN junction model. This is a nonlinear device primitive,
-// not yet a complete audio transistor model: charge storage, junction
-// capacitances, Early effect and ohmic parasitics are future extensions.
+// Static Ebers-Moll NPN junction model with SPICE-style temperature scaling
+// for transport saturation current and forward/reverse beta. Charge storage,
+// junction capacitances, Early effect and ohmic parasitics remain future work.
 class EbersMollNpn
 {
 public:
-    void prepare(double saturationCurrentAmps = 1.0e-14,
-                 double forwardBeta = 100.0,
-                 double reverseBeta = 1.0,
-                 double temperatureKelvin = 300.15) noexcept
+    void prepare(double saturationCurrentAtNominalAmps = 1.0e-14,
+                 double forwardBetaAtNominal = 100.0,
+                 double reverseBetaAtNominal = 1.0,
+                 double temperatureKelvin = 300.15,
+                 double nominalTemperatureKelvin = 300.15,
+                 double bandGapEnergyElectronVolts = 1.11,
+                 double saturationCurrentExponent = 3.0,
+                 double betaTemperatureExponent = 0.0) noexcept
     {
-        saturationCurrentAmps_ =
-            std::isfinite(saturationCurrentAmps) && saturationCurrentAmps > 0.0
-                ? saturationCurrentAmps : 1.0e-14;
-        forwardBeta_ = std::isfinite(forwardBeta) && forwardBeta > 0.0
-                           ? forwardBeta : 100.0;
-        reverseBeta_ = std::isfinite(reverseBeta) && reverseBeta > 0.0
-                           ? reverseBeta : 1.0;
+        nominalSaturationCurrentAmps_ =
+            std::isfinite(saturationCurrentAtNominalAmps) && saturationCurrentAtNominalAmps > 0.0
+                ? saturationCurrentAtNominalAmps : 1.0e-14;
+        nominalForwardBeta_ = std::isfinite(forwardBetaAtNominal) && forwardBetaAtNominal > 0.0
+                                  ? forwardBetaAtNominal : 100.0;
+        nominalReverseBeta_ = std::isfinite(reverseBetaAtNominal) && reverseBetaAtNominal > 0.0
+                                  ? reverseBetaAtNominal : 1.0;
         temperatureKelvin_ = std::isfinite(temperatureKelvin) && temperatureKelvin > 0.0
-                                 ? temperatureKelvin : 300.15;
+                                  ? temperatureKelvin : 300.15;
+        nominalTemperatureKelvin_ =
+            std::isfinite(nominalTemperatureKelvin) && nominalTemperatureKelvin > 0.0
+                ? nominalTemperatureKelvin : 300.15;
+        bandGapEnergyElectronVolts_ =
+            std::isfinite(bandGapEnergyElectronVolts) && bandGapEnergyElectronVolts >= 0.0
+                ? bandGapEnergyElectronVolts : 1.11;
+        saturationCurrentExponent_ = std::isfinite(saturationCurrentExponent)
+                                         ? saturationCurrentExponent : 3.0;
+        betaTemperatureExponent_ = std::isfinite(betaTemperatureExponent)
+                                      ? betaTemperatureExponent : 0.0;
 
-        alphaForward_ = forwardBeta_ / (forwardBeta_ + 1.0);
-        alphaReverse_ = reverseBeta_ / (reverseBeta_ + 1.0);
         constexpr double boltzmann = 1.380649e-23;
         constexpr double electronCharge = 1.602176634e-19;
         thermalVoltage_ = boltzmann * temperatureKelvin_ / electronCharge;
+
+        const double temperatureRatio = temperatureKelvin_ / nominalTemperatureKelvin_;
+        const double exponent = bandGapEnergyElectronVolts_ *
+            (temperatureKelvin_ - nominalTemperatureKelvin_) /
+            (thermalVoltage_ * nominalTemperatureKelvin_);
+        saturationCurrentAmps_ = nominalSaturationCurrentAmps_ *
+            std::pow(temperatureRatio, saturationCurrentExponent_) * std::exp(exponent);
+
+        forwardBeta_ = nominalForwardBeta_ * std::pow(temperatureRatio, betaTemperatureExponent_);
+        reverseBeta_ = nominalReverseBeta_ * std::pow(temperatureRatio, betaTemperatureExponent_);
+        alphaForward_ = forwardBeta_ / (forwardBeta_ + 1.0);
+        alphaReverse_ = reverseBeta_ / (reverseBeta_ + 1.0);
         prepared_ = true;
     }
 
@@ -72,10 +96,17 @@ private:
         return std::expm1(std::clamp(value, -80.0, 40.0));
     }
 
+    double nominalSaturationCurrentAmps_ = 1.0e-14;
+    double nominalForwardBeta_ = 100.0;
+    double nominalReverseBeta_ = 1.0;
     double saturationCurrentAmps_ = 1.0e-14;
     double forwardBeta_ = 100.0;
     double reverseBeta_ = 1.0;
     double temperatureKelvin_ = 300.15;
+    double nominalTemperatureKelvin_ = 300.15;
+    double bandGapEnergyElectronVolts_ = 1.11;
+    double saturationCurrentExponent_ = 3.0;
+    double betaTemperatureExponent_ = 0.0;
     double alphaForward_ = 100.0 / 101.0;
     double alphaReverse_ = 0.5;
     double thermalVoltage_ = 0.02586;
