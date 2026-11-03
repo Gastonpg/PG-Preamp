@@ -24,6 +24,17 @@ struct BjtEvaluation
     double capacitance[3][3]{};
 };
 
+struct BjtNoiseEvaluation
+{
+    // One-sided, uncorrelated first-order source spectral densities.
+    // These are analysis outputs only; the audio processor does not inject them.
+    double baseResistanceVoltageNoiseVPerSqrtHz = 0.0;
+    double collectorResistanceVoltageNoiseVPerSqrtHz = 0.0;
+    double emitterResistanceVoltageNoiseVPerSqrtHz = 0.0;
+    double baseCurrentShotNoiseAPerSqrtHz = 0.0;
+    double collectorCurrentShotNoiseAPerSqrtHz = 0.0;
+};
+
 struct BjtAdvancedParameters
 {
     double forwardEarlyVoltage = std::numeric_limits<double>::infinity();
@@ -423,6 +434,33 @@ public:
     double forwardBeta() const noexcept { return forwardBeta_; }
     double reverseBeta() const noexcept { return reverseBeta_; }
     double saturationCurrentAmps() const noexcept { return saturationCurrentAmps_; }
+
+    BjtNoiseEvaluation evaluateNoiseSources(
+        double temperatureKelvin,
+        const BjtTerminalCurrents& biasCurrents) const noexcept
+    {
+        BjtNoiseEvaluation noise;
+        if (!std::isfinite(temperatureKelvin) || temperatureKelvin <= 0.0 ||
+            !std::isfinite(biasCurrents.baseAmps) ||
+            !std::isfinite(biasCurrents.collectorAmps))
+            return noise;
+
+        constexpr double boltzmann = 1.380649e-23;
+        constexpr double electronCharge = 1.602176634e-19;
+        const double thermalScale = 4.0 * boltzmann * temperatureKelvin;
+        const double shotScale = 2.0 * electronCharge;
+        noise.baseResistanceVoltageNoiseVPerSqrtHz =
+            std::sqrt(thermalScale * advanced_.baseResistanceOhms);
+        noise.collectorResistanceVoltageNoiseVPerSqrtHz =
+            std::sqrt(thermalScale * advanced_.collectorResistanceOhms);
+        noise.emitterResistanceVoltageNoiseVPerSqrtHz =
+            std::sqrt(thermalScale * advanced_.emitterResistanceOhms);
+        noise.baseCurrentShotNoiseAPerSqrtHz =
+            std::sqrt(shotScale * std::abs(biasCurrents.baseAmps));
+        noise.collectorCurrentShotNoiseAPerSqrtHz =
+            std::sqrt(shotScale * std::abs(biasCurrents.collectorAmps));
+        return noise;
+    }
 
 private:
     static double nonNegative(double value) noexcept
