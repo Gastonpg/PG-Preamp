@@ -1042,13 +1042,14 @@ int main()
     // Measure distortion at two useful drive levels with an integer-cycle
     // DFT window. This is a deterministic circuit-model regression, not a
     // physical hardware measurement.
-    const auto measureStageThd = [&](double peakVolts)
+    const auto measureStageThd = [&](double peakVolts,
+                                      const EbersMollNpn& measurementTransistor)
     {
         FixedCommonEmitterStage measurementStage;
         if (!measurementStage.prepare(
                 48000.0,
                 PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
-                pluginDefaultTransistor))
+                measurementTransistor))
             return std::numeric_limits<double>::quiet_NaN();
 
         constexpr int totalSamples = 9600;
@@ -1078,15 +1079,23 @@ int main()
                                  : std::numeric_limits<double>::quiet_NaN();
     };
 
-    const double lowDriveThd = measureStageThd(0.005);
-    const double nominalMaximumDriveThd = measureStageThd(0.04);
+    const double lowDriveThd = measureStageThd(0.005, pluginDefaultTransistor);
+    const double nominalMaximumDriveThd = measureStageThd(0.04, pluginDefaultTransistor);
+    const double bc550cLowDriveThd = measureStageThd(0.005, cordellBc550c);
+    const double bc550cMaximumDriveThd = measureStageThd(0.04, cordellBc550c);
     if (!std::isfinite(lowDriveThd) ||
         !std::isfinite(nominalMaximumDriveThd) ||
-        !(nominalMaximumDriveThd > lowDriveThd))
+        !std::isfinite(bc550cLowDriveThd) ||
+        !std::isfinite(bc550cMaximumDriveThd) ||
+        !(nominalMaximumDriveThd > lowDriveThd) ||
+        !(bc550cMaximumDriveThd > bc550cLowDriveThd))
         return 115;
     std::cout << "PG A Stage M1 THD at 1 kHz: 5 mV="
               << lowDriveThd * 100.0 << "%, 40 mV="
               << nominalMaximumDriveThd * 100.0 << "%\\n";
+    std::cout << "BC550C reference A Stage THD at 1 kHz: 5 mV="
+              << bc550cLowDriveThd * 100.0 << "%, 40 mV="
+              << bc550cMaximumDriveThd * 100.0 << "%\\n";
 
     // Small-signal frequency-response survey at integer-cycle frequencies.
     constexpr double stageSweepRate = 240000.0;
