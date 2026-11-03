@@ -14,7 +14,7 @@ This branch establishes a component-by-component workflow without changing the s
 - Linear inductor model with winding resistance.
 - GitHub Actions compiles the plugin and runs standalone component tests.
 
-These models are not connected to the Preamp audio path yet, so they do not change its sound.
+These models are not connected to the Preamp audio path yet, so they do not change its sound. The component suite also checks analytical RL and RC transient/frequency responses.
 
 ## Build and test
 
