@@ -617,7 +617,6 @@ int main()
     using FixedMagneticTransformerStage =
         PGAudio::Circuit::FixedMagneticTransformerStage;
     FixedMagneticTransformerStage::Parameters transformerParameters;
-    FixedMagneticTransformerStage::Parameters defaultTransformerParameters;
     FixedMagneticTransformerStage transformerStage;
     if (!transformerStage.prepare(48000.0, transformerParameters))
         return 86;
