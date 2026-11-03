@@ -314,8 +314,9 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
     // One processing loop serves both VST3 sample formats. The circuit models
     // retain double-precision state and arithmetic in either host mode; the
     // float path narrows only when storing back to a 32-bit host buffer.
-    const auto processBlock = [&](auto inputBuffers, auto outputBuffers)
+    const auto processBlock = [&](auto inputBuffers, auto outputBuffers) -> std::uint64_t
     {
+        std::array<bool, 2> channelSilent = {true, true};
         for (int32 sample = 0; sample < data.numSamples; ++sample)
         {
             // Apply every parameter point scheduled at this sample offset.
@@ -405,18 +406,29 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
                     (kOutputFullScalePerVolt * outputGainCurrentLinear_);
                 const double finalSample = processedSample +
                     (sourceSample - processedSample) * bypassMix_;
-                destination[sample] = std::isfinite(finalSample)
-                    ? finalSample : source[sample];
+                const double outputSample = std::isfinite(finalSample)
+                    ? finalSample : sourceSample;
+                destination[sample] = outputSample;
+                if (outputSample != 0.0)
+                    channelSilent[static_cast<std::size_t>(channel)] = false;
             }
         }
+
+        std::uint64_t silenceFlags = 0;
+        for (int32 channel = 0; channel < channels && channel < 2; ++channel)
+        {
+            if (channelSilent[static_cast<std::size_t>(channel)])
+                silenceFlags |= (std::uint64_t{1} << channel);
+        }
+        return silenceFlags;
     };
 
     if (useFloat32)
-        processBlock(input.channelBuffers32, output.channelBuffers32);
+        output.silenceFlags = processBlock(
+            input.channelBuffers32, output.channelBuffers32);
     else
-        processBlock(input.channelBuffers64, output.channelBuffers64);
-
-    output.silenceFlags = 0;
+        output.silenceFlags = processBlock(
+            input.channelBuffers64, output.channelBuffers64);
     return kResultOk;
 }
 
