@@ -313,12 +313,11 @@ int main()
     if (!(magneticCore.hysteresisWorkDensity() > 0.0))
         return 60;
 
-    // The return path has nonzero remanence and therefore differs from the
-    // virgin magnetization curve at the same applied field.
-    const double remanenceBeforeReverseDrive = coreSample.fluxDensityTesla;
+    // After negative saturation, zero applied field retains negative
+    // remanent flux instead of returning to the virgin B=0 state.
     magneticCore.advance(-1200.0, coreDt);
     const auto remanentState = magneticCore.advance(0.0, coreDt);
-    if (!(remanentState.fluxDensityTesla < remanenceBeforeReverseDrive))
+    if (!(remanentState.fluxDensityTesla < -0.5))
         return 61;
 
     // Use the detailed device in subsequent assembled amplifier tests too.
