@@ -1418,7 +1418,9 @@ int main()
                 48000.0,
                 PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
                 pluginDefaultTransistor) ||
-            !benchmarkTransformers[channel].prepare(48000.0, transformerParameters))
+            !benchmarkTransformers[channel].prepare(
+                48000.0,
+                PGAudio::Circuit::PgIronCalibrationV1::makeParameters()))
             return 120;
     }
 
