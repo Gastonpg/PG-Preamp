@@ -5,7 +5,9 @@
 #include "circuit/pg_bjt_ebers_moll.h"
 #include "circuit/pg_mna_solver.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <iostream>
 
 namespace {
@@ -354,7 +356,7 @@ int main()
         std::cerr << "CE AC measurement: peak=" << outputPeak
                   << " trough=" << outputTrough
                   << " gain=" << measuredVoltageGain
-                  << " correlation=" << inputOutputCorrelation << "\\n";
+                  << " correlation=" << inputOutputCorrelation << "\n";
         return 43;
     }
     if (!(inputOutputCorrelation < 0.0))
