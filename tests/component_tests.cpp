@@ -10,6 +10,7 @@
 #include "circuit/pg_fixed_magnetic_transformer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <iostream>
@@ -638,6 +639,10 @@ int main()
     double transformerOutputSquares = 0.0;
     double transformerFluxPeak = 0.0;
     constexpr int transformerAudioSamples = 4800;
+    constexpr int transformerMeasurementStart = 480;
+    constexpr int transformerMeasurementSamples =
+        transformerAudioSamples - transformerMeasurementStart;
+    std::array<double, transformerMeasurementSamples> transformerAudioOutput{};
     for (int sample = 0; sample < transformerAudioSamples; ++sample)
     {
         const double input = 0.005 *
@@ -653,8 +658,11 @@ int main()
             return 90;
         transformerFluxPeak = std::max(
             transformerFluxPeak, std::abs(transformerResult.fluxDensityTesla));
-        if (sample >= 480)
+        if (sample >= transformerMeasurementStart)
         {
+            const std::size_t measuredIndex =
+                static_cast<std::size_t>(sample - transformerMeasurementStart);
+            transformerAudioOutput[measuredIndex] = transformerResult.outputVolts;
             transformerInputSquares += input * input;
             transformerOutputSquares +=
                 static_cast<double>(transformerResult.outputVolts) *
@@ -663,8 +671,39 @@ int main()
     }
     const double transformerGain = std::sqrt(
         transformerOutputSquares / transformerInputSquares);
-    if (!(transformerGain > 0.75 && transformerGain < 1.05))
+    if (!(transformerGain > 0.95 && transformerGain < 1.5))
         return 91;
+
+    // The smooth core model must keep a clean single tone periodic. Measure
+    // a non-harmonic DFT bin to catch broadband reversal artifacts that can
+    // sound like hiss even when the input itself is a pure sine.
+    const auto spectralAmplitude = [&](int bin)
+    {
+        double real = 0.0;
+        double imaginary = 0.0;
+        for (int n = 0; n < transformerMeasurementSamples; ++n)
+        {
+            const double phase = 2.0 * pi * bin * n /
+                static_cast<double>(transformerMeasurementSamples);
+            real += transformerAudioOutput[static_cast<std::size_t>(n)] *
+                    std::cos(phase);
+            imaginary -= transformerAudioOutput[static_cast<std::size_t>(n)] *
+                         std::sin(phase);
+        }
+        const double scale = 2.0 / transformerMeasurementSamples;
+        return scale * std::sqrt(real * real + imaginary * imaginary);
+    };
+    const double transformerFundamental = spectralAmplitude(90);
+    const double transformerNonHarmonicSpur = std::max(
+        spectralAmplitude(101),
+        std::max(spectralAmplitude(137), spectralAmplitude(173)));
+    if (!(transformerFundamental > 1.0e-6) ||
+        transformerNonHarmonicSpur > transformerFundamental * 1.0e-3)
+        return 98;
+
+    std::cout << "Iron 10468-equivalent reference: small-signal gain="
+              << transformerGain << "x, non-harmonic spur="
+              << transformerNonHarmonicSpur / transformerFundamental << "\\n";
     if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
         return 92;
 
