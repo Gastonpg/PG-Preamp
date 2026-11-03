@@ -1281,8 +1281,7 @@ int main()
          frequencyIndex < transformerPeriods.size(); ++frequencyIndex)
     {
         const int period = transformerPeriods[frequencyIndex];
-        const double frequency = transformerSweepRate / period;
-        FixedMagneticTransformerStage sweepTransformer;
+         FixedMagneticTransformerStage sweepTransformer;
         if (!sweepTransformer.prepare(
                 transformerSweepRate, transformerFrequencyParameters))
             return 100;
