@@ -11,7 +11,7 @@
 namespace Steinberg {
 
 namespace {
-constexpr double kAStageReferenceGain = 4.1316;
+constexpr double kAStageReferenceGain = 4.14469;
 constexpr double kIronReferenceGain = 1.2545;
 constexpr double kInputVoltsPerFullScale = 0.005;
 constexpr double kOutputFullScalePerVolt = 40.0;
