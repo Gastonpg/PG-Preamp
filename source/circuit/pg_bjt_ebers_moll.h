@@ -188,9 +188,11 @@ public:
             ? saturationCurrentAmps_ * std::exp(vbcClamped) / reverseThermalVoltage : 0.0;
 
         const double forwardLeakageNormalized =
-            vbeNormalized / advanced_.baseEmitterLeakageEmissionCoefficient;
+            vbe / (thermalVoltage_ *
+                  advanced_.baseEmitterLeakageEmissionCoefficient);
         const double reverseLeakageNormalized =
-            vbcNormalized / advanced_.baseCollectorLeakageEmissionCoefficient;
+            vbc / (thermalVoltage_ *
+                  advanced_.baseCollectorLeakageEmissionCoefficient);
         const double forwardLeakageClamped =
             std::clamp(forwardLeakageNormalized, -80.0, 40.0);
         const double reverseLeakageClamped =
