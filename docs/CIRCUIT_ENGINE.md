@@ -92,6 +92,8 @@ To establish a reproducible electrical target, the macro-model uses the publishe
 
 The real-time model therefore uses 1:2 turns ratio, 150-ohm source resistance, 12-ohm primary DCR, 65-ohm secondary DCR and a 1.2-kilohm secondary load. The 150-ohm source is a nominal microphone-source assumption; it is not an internal Carnhill value.
 
+These values, together with the PG magnetic curve and effective turns/leakage assumptions, are now centralized in `source/circuit/pg_iron_calibration.h` as **PG Iron M1**. The profile deliberately separates electrical anchors taken from public replacement data from PG-owned macro-parameters. Its saturation flux density, effective core geometry, permeability, coercivity and relaxation constants are design/voicing values rather than claims about the proprietary Marinair core. The VST3 processor and component tests both consume the same profile, preventing test/runtime parameter drift. This is the project's own starting calibration; future revisions can change its voicing without pretending to reproduce an undocumented production unit.
+
 A second independent cross-check is the **Sowter Type 9145**, which Sowter explicitly describes as a replacement for the Neve 10468. Its published 1:2 / 300-ohm-to-1.2-kilohm configuration gives a response specification of ±0.5 dB from 10 Hz to 60 kHz with a 1-kilohm source and 600-ohm load. Its specification also lists a maximum input level of +10 dBu at 50 Hz for 0.5% THD with a 40-ohm source. The automated frequency sweep therefore uses the published 1-kilohm source / 600-ohm load and checks the ±0.5 dB envelope from 10 Hz to 60 kHz, referenced to 1 kHz. The current macro-model's measured maximum deviation across the eight-point sweep is 0.036 dB. This is an independent replacement-transformer response target, not a measurement of the original Marinair or a claim that the two replacement transformers share winding DCR. See the [Sowter Type 9145 data](https://www.sowter.co.uk/specs/9145.php) and [AMS Neve's 1073 transformer description](https://www.ams-neve.com/outboard/1073-range/1073-mic-preamp-equaliser/).
 
 Absolute effective turns, core geometry, saturation, relative permeability, coercive field, branch-memory time constant and leakage inductance are macro-model values, not measured original Marinair data. They are kept explicit in the code and marked provisional. The implementation is therefore a data-anchored 10468-role model, not an exact replica of an original 10468 or a claim that all of its core properties have been calibrated.
@@ -145,8 +147,8 @@ The processor supports 32-bit audio; 64-bit processing is not implemented. The l
 
 ## Remaining milestones
 
-1. Characterize a physical 10468/VTB9045 reference or obtain measured B-H, winding impedance and frequency-response curves; fit the effective core and leakage parameters to the measured data.
-2. Add a calibrated thermal-noise and loss model only if a trustworthy transformer/winding dataset supports its parameters.
+1. Iterate PG Iron M1's voicing against level-matched listening tests on real vocal and instrument material; use physical B-H, impedance and frequency-response measurements later if a specific hardware unit becomes available.
+2. Add winding thermal noise and more detailed core-loss behavior only when the chosen PG noise target and a trustworthy measurement dataset justify it.
 3. Decide whether to add the separate 31267 line-input transformer and LO1166 output-transformer models as additional modes.
 4. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
 5. Profile real-time CPU cost, oversampling requirements, denormal behavior and stability on the target PC at 44.1/48/96/192 kHz.
