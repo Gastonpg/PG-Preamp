@@ -13,7 +13,7 @@ The temporary rack-style editor exposes:
 
 - **Bypass**
 - **Input:** -12 to +18 dB, default 0 dB
-- **Output:** -12 to +12 dB, default 0 dB
+- **Output:** -18 to +18 dB, default 0 dB (enough attenuation to offset the full +18 dB Input range)
 - **A Stage:** enabled by default
 - **Iron:** disabled by default
 
@@ -21,7 +21,7 @@ The temporary rack-style editor exposes:
 
 AMS Neve identifies the 10468 as the 1073 microphone-input transformer, the 31267 as its line-input transformer, and the LO1166 as its output transformer. The VTB9045 design guide documents a low-level microphone-input transformer with a 1:2 turns ratio, a parallel-primary 300-ohm / parallel-secondary 1.2-kohm configuration at +6 dB, and individual winding DCRs of 24+24 ohms primary and 130+130 ohms secondary. In that parallel configuration, the effective winding DCRs are 12 ohms and 65 ohms.
 
-The Iron model uses those public ratio, impedance and winding-resistance values as its electrical reference. Its absolute effective turns, core geometry, permeability, coercivity and leakage values are macro-model parameters, not disclosed Marinair 10468 measurements. Therefore it is a measured-data-anchored equivalent, **not an exact replica of the original Marinair transformer**.
+The Iron model uses those public ratio, impedance and winding-resistance values as its electrical reference. Its absolute effective turns, core geometry, permeability, coercivity and leakage values are PG design parameters, not disclosed Marinair 10468 measurements. They are grouped in the reusable **PG Iron M1** profile in `source/circuit/pg_iron_calibration.h`, so future voicing changes and tests share one calibration source. PG Iron M1 is our own design informed by the Marinair/10468 role and public replacement data, **not an exact replica of the original transformer**.
 
 As an independent 10468-replacement reference, Sowter's Type 9145 specifies a ±0.5 dB response from 10 Hz to 60 kHz with a 1-kilohm source and 600-ohm load. The current model's eight-point sweep under those source/load conditions deviates by no more than 0.036 dB from 1 kHz. This is a response-envelope cross-check against a published replacement specification, not a measurement of an original 10468. The LO1166 output transformer is not yet implemented.
 
@@ -37,7 +37,7 @@ The fixed common-emitter test circuit measures about 4.14469x small-signal volta
 
 - The A Stage and Iron models are prepared outside the audio callback.
 - Both blocks remain internally active to preserve state; their audible paths are crossfaded over 5 ms.
-- Input and Output gain changes are smoothed over the same interval.
+- Input and Output gain changes are smoothed over the same interval. Output spans -18 to +18 dB, centered at 0 dB; versioned state migration preserves the previous Output level in existing sessions.
 - Parameter changes are consumed at their VST3 sample offsets.
 - The fixed common-emitter stage uses a fixed-size Newton solve and stack arrays; it does not allocate from the heap or call the general MNA solver in the callback.
 - The transformer uses a fixed-size scalar solve and fixed state; it does not allocate from the heap.
