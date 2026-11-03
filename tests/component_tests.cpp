@@ -2,6 +2,7 @@
 #include "circuit/pg_resistor.h"
 #include "circuit/pg_capacitor.h"
 #include "circuit/pg_inductor.h"
+#include "circuit/pg_bjt_ebers_moll.h"
 
 #include <cmath>
 #include <iostream>
@@ -20,6 +21,7 @@ int main()
     using PGAudio::Circuit::ResistorThermalNoise;
     using PGAudio::Circuit::Capacitor;
     using PGAudio::Circuit::Inductor;
+    using PGAudio::Circuit::EbersMollNpn;
 
     RcStage rc;
     rc.prepare(48000.0, 10000.0, 10.0e-9);
@@ -35,7 +37,6 @@ int main()
     }
     if (!near(rc.voltage(), 1.0, 1.0e-9)) return 4;
 
-    // Verify the -3 dB response at a coherent 1.6 kHz sine / 48 kHz sample rate.
     constexpr int samplesPerCycle = 30;
     constexpr int settleCycles = 40;
     constexpr int measureCycles = 200;
@@ -124,7 +125,6 @@ int main()
     if (!near(capacitor.dielectricVoltage(), 100.0, 0.02)) return 18;
     if (!near(capacitor.terminalVoltage(), 100.0005, 0.02)) return 19;
 
-    // Linear inductor with winding resistance: first-order RL current response.
     Inductor inductor;
     inductor.prepare(48000.0, 1.0, 10.0);
     const double rlTau = 1.0 / 10.0;
@@ -133,14 +133,33 @@ int main()
     const double expectedCurrent = 0.1 * (1.0 - std::exp(-5.0));
     if (!near(inductor.currentAmps(), expectedCurrent, 1.0e-5)) return 20;
     if (!near(inductor.electricalTimeConstantSeconds(), rlTau, 1.0e-12)) return 21;
-
-    // Ideal inductance integrates voltage: di/dt = v/L.
     inductor.prepare(48000.0, 1.0, 0.0);
     inductor.reset();
     for (int i = 0; i < 480; ++i)
         inductor.processVoltage(1.0f);
     if (!near(inductor.currentAmps(), 0.01, 1.0e-9)) return 22;
 
-    std::cout << "PG Circuit Engine: R, L, C and passive-network tests passed.\n";
+    EbersMollNpn transistor;
+    transistor.prepare(1.0e-14, 100.0, 1.0, 300.15);
+    const double targetCollectorCurrent = 1.0e-3;
+    const double vbe = transistor.thermalVoltage() * std::log1p(
+        targetCollectorCurrent / transistor.saturationCurrentAmps());
+    const auto forwardActive = transistor.evaluate(vbe, 5.0, 0.0);
+    if (!near(forwardActive.collectorAmps, targetCollectorCurrent, 1.0e-8)) return 23;
+    if (!near(forwardActive.collectorAmps / forwardActive.baseAmps, 100.0, 0.02)) return 24;
+    if (!near(forwardActive.collectorAmps + forwardActive.baseAmps + forwardActive.emitterAmps,
+              0.0, 1.0e-15)) return 25;
+
+    const auto saturation = transistor.evaluate(0.72, 0.55, 0.0);
+    if (!std::isfinite(saturation.collectorAmps) ||
+        !std::isfinite(saturation.baseAmps) ||
+        !near(saturation.collectorAmps + saturation.baseAmps + saturation.emitterAmps,
+              0.0, 1.0e-12)) return 26;
+
+    EbersMollNpn hotTransistor;
+    hotTransistor.prepare(1.0e-14, 100.0, 1.0, 350.0);
+    if (!(hotTransistor.thermalVoltage() > transistor.thermalVoltage())) return 27;
+
+    std::cout << "PG Circuit Engine: R, L, C and NPN device tests passed.\n";
     return 0;
 }
