@@ -37,14 +37,20 @@ An optional deterministic noise source produces a low-cost Gaussian approximatio
 
 ### Inductor with winding resistance
 
-The current state follows the exact first-order response of an ideal inductance in series with winding resistance for a voltage held constant over each sample. The winding resistance is explicit. Core saturation, hysteresis and frequency-dependent core loss are intentionally not hidden inside this linear component.
+The current state follows the exact first-order response of an ideal inductance in series with winding resistance for a voltage held constant over each sample. Winding resistance is explicit. Core saturation, hysteresis and frequency-dependent core loss are not hidden inside this linear component.
+
+### Static NPN transistor (Ebers-Moll)
+
+The first transistor primitive calculates collector, base and emitter currents from base-emitter and base-collector junction voltages, using saturation current, forward/reverse beta and absolute temperature. Terminal-current sign conventions are explicit and KCL is checked by tests.
+
+This is a static junction model only. It does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not connected to the audio path and is not claimed to reproduce a particular BC184C or 2N3055 device.
 
 ## Next candidates
 
 1. Add dielectric-absorption behavior as independently testable relaxation branches.
-2. Add magnetic core loss, saturation and hysteresis only with documented assumptions and tests.
-3. Build passive RLC networks from validated components.
-4. Develop a transformer model from winding/core data, rather than using a generic saturation curve.
-5. Define and test the active transistor gain-stage topology before real-time integration.
+2. Extend the transistor model with validated parasitic resistance, Early effect and charge storage.
+3. Add magnetic core loss, saturation and hysteresis only with documented assumptions and tests.
+4. Build passive RLC networks and a complete amplifier stage from validated components.
+5. Develop a transformer model from winding/core data, rather than using a generic saturation curve.
 
 The engine remains independent of the VST3 wrapper so it can later be reused by PG Optical Compressor.
