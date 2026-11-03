@@ -9,6 +9,8 @@ The Windows x64 VST3 contains two independently switchable blocks per channel:
 - **A Stage:** a fixed common-emitter transistor circuit with a solved DC operating point, dynamic junction charge and coupling capacitors.
 - **Iron:** a loaded two-winding microphone-input transformer macro-model, anchored to the Neve 10468 role and the published Carnhill VTB9045 reference configuration.
 
+The current active-block calibration profiles are centralized and shared by runtime and tests: **PG A Stage M1** and **PG Iron M1**. A Stage M1 preserves the currently auditioned voicing while its operating point and full-cycle conduction are instrumented; its transistor's detailed device constants remain provisional rather than falsely attributed to a specific commercial part.
+
 The temporary rack-style editor exposes:
 
 - **Bypass**
@@ -43,7 +45,8 @@ The fixed common-emitter test circuit measures about 4.14469x small-signal volta
 - The transformer uses a fixed-size scalar solve and fixed state; it does not allocate from the heap.
 - The plugin processes 32-bit audio; 64-bit VST3 processing is not implemented.
 - CPU cost still needs profiling on the target PC.
-- Core parameters still need calibration against measured 10468/VTB9045 B-H, impedance and frequency-response data.
+- A Stage M1 bias and full-cycle collector conduction are regression-tested at the nominal maximum Input drive. Its transistor model still needs device-specific fitting; a low-noise BC550C is a possible reference candidate, not the current asserted device.
+- Iron core parameters remain PG macro-model choices and should be iterated against listening tests and any future physical reference measurements.
 
 ## Build and download
 
