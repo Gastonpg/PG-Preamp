@@ -959,6 +959,32 @@ int main()
         !near(cordellBc550c.saturationCurrentAmps(), 45.0e-15, 1.0e-24))
         return 136;
 
+    // Datasheet operating point: BC550C gain grade C is specified
+    // from 420 to 800 at 2 mA / 5 V. Fit VBE numerically and compare the
+    // Cordell model's predicted DC gain at that same test point.
+    double lowerBaseVoltage = 0.50;
+    double upperBaseVoltage = 0.90;
+    for (int iteration = 0; iteration < 80; ++iteration)
+    {
+        const double midpoint = 0.5 * (lowerBaseVoltage + upperBaseVoltage);
+        const auto midpointCurrent = cordellBc550c.evaluate(
+            midpoint, 5.0, 0.0).collectorAmps;
+        if (midpointCurrent < 2.0e-3)
+            lowerBaseVoltage = midpoint;
+        else
+            upperBaseVoltage = midpoint;
+    }
+    const auto bc550cDatasheetPoint = cordellBc550c.evaluate(
+        0.5 * (lowerBaseVoltage + upperBaseVoltage), 5.0, 0.0);
+    const double bc550cDatasheetGain =
+        bc550cDatasheetPoint.collectorAmps / bc550cDatasheetPoint.baseAmps;
+    if (!near(bc550cDatasheetPoint.collectorAmps, 2.0e-3, 2.0e-7) ||
+        !(bc550cDatasheetGain >= 420.0 && bc550cDatasheetGain <= 800.0))
+        return 140;
+    std::cout << "Cordell BC550C 2 mA / 5 V datasheet point: Vbe="
+              << 0.5 * (lowerBaseVoltage + upperBaseVoltage)
+              << " V, predicted hFE=" << bc550cDatasheetGain << "\\n";
+
     FixedCommonEmitterStage bc550cReferenceStage;
     if (!bc550cReferenceStage.prepare(
             48000.0,
