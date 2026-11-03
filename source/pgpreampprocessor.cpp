@@ -1,6 +1,7 @@
 #include "pgpreampprocessor.h"
 #include "pgpreampcids.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "base/source/fstreamer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,6 +22,40 @@ tresult PLUGIN_API PGPreampProcessor::initialize(FUnknown* context)
 
     addAudioInput(STR16("Stereo In"), Vst::SpeakerArr::kStereo);
     addAudioOutput(STR16("Stereo Out"), Vst::SpeakerArr::kStereo);
+    return kResultOk;
+}
+
+tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
+{
+    if (state == nullptr)
+        return kResultFalse;
+
+    IBStreamer streamer(state, kLittleEndian);
+    float bypassValue = 0.0f;
+    float inputValue = 0.4f;
+    float outputValue = 0.5f;
+    if (!streamer.readFloat(bypassValue) ||
+        !streamer.readFloat(inputValue) ||
+        !streamer.readFloat(outputValue))
+        return kResultFalse;
+
+    bypass_ = bypassValue >= 0.5f;
+    inputGainNormalized_ = std::clamp(static_cast<double>(inputValue), 0.0, 1.0);
+    outputGainNormalized_ = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
+    return kResultOk;
+}
+
+tresult PLUGIN_API PGPreampProcessor::getState(IBStream* state)
+{
+    if (state == nullptr)
+        return kResultFalse;
+
+    IBStreamer streamer(state, kLittleEndian);
+    if (!streamer.writeFloat(bypass_ ? 1.0f : 0.0f) ||
+        !streamer.writeFloat(static_cast<float>(inputGainNormalized_)) ||
+        !streamer.writeFloat(static_cast<float>(outputGainNormalized_)))
+        return kResultFalse;
+
     return kResultOk;
 }
 
