@@ -6,6 +6,7 @@
 #include "circuit/pg_mna_solver.h"
 #include "circuit/pg_preisach_core.h"
 #include "circuit/pg_magnetic_transformer.h"
+#include "circuit/pg_fixed_common_emitter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -30,6 +31,7 @@ int main()
     using PGAudio::Circuit::BjtAdvancedParameters;
     using PGAudio::Circuit::PreisachCore;
     using PGAudio::Circuit::MagneticTransformer;
+    using PGAudio::Circuit::FixedCommonEmitterStage;
     using PGAudio::Circuit::MnaCircuit;
 
     RcStage rc;
@@ -581,6 +583,65 @@ int main()
         saturatedTransformer.processCurrents(0.0, 0.0, solverDt);
     if (!(std::abs(nonlinearTransformerSample.coreFluxDensityTesla) > 0.5))
         return 71;
+
+    // Fixed-topology real-time candidate: same device model, fixed resistor
+    // network and coupling-capacitor states, solved with stack-only arrays.
+    FixedCommonEmitterStage realtimeStage;
+    FixedCommonEmitterStage::Parameters realtimeParameters;
+    if (!realtimeStage.prepare(48000.0, realtimeParameters, transistor))
+        return 72;
+
+    double realtimeInputCorrelation = 0.0;
+    double realtimeInputSquares = 0.0;
+    double realtimeOutputSquares = 0.0;
+    double realtimeOutputSum = 0.0;
+    unsigned maximumObservedIterations = 0;
+    constexpr int realtimeSamples = 960;
+    constexpr int realtimeMeasureStart = 96;
+    for (int sample = 0; sample < realtimeSamples; ++sample)
+    {
+        const double input = 0.005 *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        FixedCommonEmitterStage::ProcessResult realtimeResult;
+        if (!realtimeStage.processSample(static_cast<float>(input), realtimeResult))
+            return 73;
+        maximumObservedIterations =
+            std::max(maximumObservedIterations, realtimeResult.iterations);
+
+        if (sample >= realtimeMeasureStart)
+        {
+            realtimeInputCorrelation += input * realtimeResult.output;
+            realtimeInputSquares += input * input;
+            realtimeOutputSquares +=
+                static_cast<double>(realtimeResult.output) * realtimeResult.output;
+            realtimeOutputSum += realtimeResult.output;
+        }
+    }
+
+    const int realtimeMeasuredSamples = realtimeSamples - realtimeMeasureStart;
+    const double realtimeOutputMean = realtimeOutputSum / realtimeMeasuredSamples;
+    const double realtimeInputRms =
+        std::sqrt(realtimeInputSquares / realtimeMeasuredSamples);
+    const double realtimeOutputRms = std::sqrt(std::max(
+        0.0, realtimeOutputSquares / realtimeMeasuredSamples -
+             realtimeOutputMean * realtimeOutputMean));
+    if (!(realtimeOutputRms / realtimeInputRms > 2.0))
+        return 74;
+    if (!(realtimeInputCorrelation < 0.0))
+        return 75;
+    if (maximumObservedIterations > realtimeParameters.maximumNewtonIterations)
+        return 76;
+    if (!realtimeStage.lastResult().converged ||
+        !std::isfinite(realtimeStage.lastResult().residualAmps))
+        return 77;
+
+    realtimeStage.reset();
+    for (int sample = 0; sample < 128; ++sample)
+    {
+        const float output = realtimeStage.processSample(0.0f);
+        if (!std::isfinite(output))
+            return 78;
+    }
 
     std::cout << "PG Circuit Engine: R, L, C, NPN, coupled windings, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
