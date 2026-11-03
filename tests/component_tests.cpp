@@ -576,8 +576,8 @@ int main()
             saturatedTransformer.processCurrents(current, 0.0, solverDt);
         if (!std::isfinite(nonlinearTransformerSample.primaryVoltage) ||
             !std::isfinite(nonlinearTransformerSample.secondaryVoltage) ||
-            !std::isfinite(nonlinearTransformerSample.coreLossPowerEstimateWatts) ||
-            nonlinearTransformerSample.coreLossPowerEstimateWatts < 0.0)
+            !std::isfinite(nonlinearTransformerSample.coreEddyLossPowerWatts) ||
+            nonlinearTransformerSample.coreEddyLossPowerWatts < 0.0)
             return 70;
     }
     nonlinearTransformerSample =
