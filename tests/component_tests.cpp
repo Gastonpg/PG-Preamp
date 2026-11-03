@@ -54,6 +54,7 @@ int main()
     using PGAudio::Circuit::PreisachCore;
     using PGAudio::Circuit::MagneticTransformer;
     using PGAudio::Circuit::FixedCommonEmitterStage;
+    using PGAudio::Circuit::FixedMagneticTransformerStage;
     using PGAudio::Circuit::MnaCircuit;
 
     RcStage rc;
@@ -639,7 +640,6 @@ int main()
         0.0, amplifierOutputSquares / measuredSamples - outputMean * outputMean));
     const double inputRms = std::sqrt(amplifierInputSquares / measuredSamples);
     const double measuredVoltageGain = outputAcRms / inputRms;
-    const double mnaReferenceVoltageGain = measuredVoltageGain;
 
     if (!(outputPeak - outputTrough > 0.02 && measuredVoltageGain > 2.0))
     {
