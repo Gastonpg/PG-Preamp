@@ -612,6 +612,46 @@ int main()
         return 85;
     }
 
+    // Measure the exact provisional transistor used by the VST3 processor,
+    // not the more generic transistor used in the independent topology test.
+    FixedCommonEmitterStage pluginStage;
+    if (!pluginStage.prepare(48000.0, FixedCommonEmitterStage::Parameters{},
+                             pluginDefaultTransistor))
+        return 106;
+    double pluginStageInputSquares = 0.0;
+    double pluginStageOutputSquares = 0.0;
+    double pluginStageOutputSum = 0.0;
+    constexpr int pluginStageSamples = 960;
+    constexpr int pluginStageMeasurementStart = 96;
+    for (int sample = 0; sample < pluginStageSamples; ++sample)
+    {
+        const double input = 0.005 *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        FixedCommonEmitterStage::ProcessResult pluginStageResult;
+        if (!pluginStage.processSample(
+                static_cast<float>(input), pluginStageResult))
+            return 107;
+        if (sample >= pluginStageMeasurementStart)
+        {
+            pluginStageInputSquares += input * input;
+            pluginStageOutputSquares +=
+                static_cast<double>(pluginStageResult.output) *
+                pluginStageResult.output;
+            pluginStageOutputSum += pluginStageResult.output;
+        }
+    }
+    const double pluginStageMeasuredSamples =
+        pluginStageSamples - pluginStageMeasurementStart;
+    const double pluginStageOutputMean =
+        pluginStageOutputSum / pluginStageMeasuredSamples;
+    const double pluginStageGain = std::sqrt(std::max(
+        0.0, pluginStageOutputSquares / pluginStageMeasuredSamples -
+             pluginStageOutputMean * pluginStageOutputMean) /
+        (pluginStageInputSquares / pluginStageMeasuredSamples));
+    if (!(pluginStageGain > 2.0 && pluginStageGain < 8.0))
+        return 108;
+    std::cout << "Plugin A Stage reference gain=" << pluginStageGain << "x\\n";
+
     // Real-time loaded transformer: the primary is driven through a source
     // resistance, the secondary is terminated, and winding currents satisfy
     // Ampere's law while induced voltages obey Faraday's law.
