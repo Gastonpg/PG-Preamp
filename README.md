@@ -21,15 +21,17 @@ The temporary rack-style editor exposes:
 
 AMS Neve identifies the 10468 as the 1073 microphone-input transformer, the 31267 as its line-input transformer, and the LO1166 as its output transformer. The VTB9045 design guide documents a low-level microphone-input transformer with a 1:2 turns ratio, a parallel-primary 300-ohm / parallel-secondary 1.2-kohm configuration at +6 dB, and individual winding DCRs of 24+24 ohms primary and 130+130 ohms secondary. In that parallel configuration, the effective winding DCRs are 12 ohms and 65 ohms.
 
-The Iron model uses those public ratio, impedance and winding-resistance values as its electrical reference. Its absolute effective turns, core geometry, permeability, coercivity and leakage values are macro-model parameters, not disclosed Marinair 10468 measurements. Therefore it is a measured-data-anchored equivalent, **not an exact replica of the original Marinair transformer**. The LO1166 output transformer is not yet implemented.
+The Iron model uses those public ratio, impedance and winding-resistance values as its electrical reference. Its absolute effective turns, core geometry, permeability, coercivity and leakage values are macro-model parameters, not disclosed Marinair 10468 measurements. Therefore it is a measured-data-anchored equivalent, **not an exact replica of the original Marinair transformer**.
 
-The real-time core uses a smooth, stateful hysteresis approximation rather than routing discrete Preisach relay switches directly into audio. This avoids discontinuous flux steps at sample boundaries. At a 5 mV, 1 kHz test level and 48 kHz sample rate, the reference configuration measured 1.2545x small-signal voltage gain, approximately 0.000059% THD, and a largest selected non-harmonic spur around -123.7 dBc. Those are synthetic single-tone test results, not a claim of measured noise or distortion on a physical 10468.
+As an independent 10468-replacement reference, Sowter's Type 9145 specifies a ±0.5 dB response from 10 Hz to 60 kHz with a 1-kilohm source and 600-ohm load. The current model's eight-point sweep under those source/load conditions deviates by no more than 0.036 dB from 1 kHz. This is a response-envelope cross-check against a published replacement specification, not a measurement of an original 10468. The LO1166 output transformer is not yet implemented.
+
+The real-time core uses a smooth, stateful hysteresis approximation rather than routing discrete Preisach relay switches directly into audio. This avoids discontinuous flux steps at sample boundaries. At a 5 mV, 1 kHz test level and 48 kHz sample rate, the reference configuration measured 1.2545x small-signal voltage gain, approximately 0.000059% THD, and a largest selected non-harmonic spur around -123.7 dBc. The integrated non-harmonic DFT residual across the test spectrum is 8.43e-5 of the fundamental (about -81.5 dBc). Those are synthetic single-tone test results, not a claim of measured noise or distortion on a physical 10468.
 
 Iron contains no injected random white-noise source. It can still transform noise already present in the input recording; the model does not yet add a calibrated winding thermal-noise contribution.
 
 ### A Stage level matching
 
-The fixed common-emitter test circuit measures about 4.14469x small-signal voltage gain at 1 kHz. When A Stage is switched off, its dry path uses that reference gain as makeup, preventing the roughly 12.3 dB level drop heard in the initial build. This compensation is a level-matched colour switch, not a claim that a passive bypassed transistor stage has physical gain.
+The fixed common-emitter test circuit measures about 4.14469x small-signal voltage gain at 1 kHz. When A Stage is switched off, its dry path uses that reference gain as makeup, preserving its inverting polarity and preventing the roughly 12.3 dB level drop heard in the initial build. This compensation is a level-matched colour switch, not a claim that a passive bypassed transistor stage has physical gain.
 
 ### Real-time behavior
 
