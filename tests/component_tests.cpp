@@ -4,6 +4,7 @@
 #include "circuit/pg_inductor.h"
 #include "circuit/pg_bjt_ebers_moll.h"
 #include "circuit/pg_mna_solver.h"
+#include "circuit/pg_preisach_core.h"
 
 #include <algorithm>
 #include <cmath>
@@ -272,6 +273,51 @@ int main()
     const auto highVce = detailedTransistor.evaluate(0.67, 8.0, 0.0);
     if (!(highVce.collectorAmps > lowVce.collectorAmps))
         return 54;
+
+    // Hysteretic magnetic core: remanence, coercive switching, saturation,
+    // closed-loop hysteresis work and non-negative eddy-current loss.
+    PreisachCore<512> magneticCore;
+    if (!magneticCore.prepare(1.25, 1.0e-4, 0.08, 2.0e-4))
+        return 55;
+    if (magneticCore.configureSymmetricDomains(15.0, 900.0, 256) != 256)
+        return 56;
+
+    constexpr double coreDt = 1.0e-5;
+    auto coreSample = magneticCore.advance(1200.0, coreDt);
+    if (!(coreSample.fluxDensityTesla > 1.0))
+        return 57;
+    coreSample = magneticCore.advance(0.0, coreDt);
+    if (!(coreSample.fluxDensityTesla > 0.5))
+        return 58; // positive remanent flux after positive saturation
+
+    magneticCore.reset();
+    magneticCore.advance(-1200.0, coreDt);
+    magneticCore.resetLossAccumulator();
+    constexpr int coreHalfCycleSteps = 1200;
+    for (int step = 0; step <= coreHalfCycleSteps; ++step)
+    {
+        const double field = -1200.0 + 2400.0 * step / coreHalfCycleSteps;
+        coreSample = magneticCore.advance(field, coreDt);
+        if (!std::isfinite(coreSample.fluxDensityTesla) ||
+            !std::isfinite(coreSample.eddyLossDensityWattsPerM3) ||
+            coreSample.eddyLossDensityWattsPerM3 < 0.0)
+            return 59;
+    }
+    for (int step = 0; step <= coreHalfCycleSteps; ++step)
+    {
+        const double field = 1200.0 - 2400.0 * step / coreHalfCycleSteps;
+        coreSample = magneticCore.advance(field, coreDt);
+    }
+    if (!(magneticCore.hysteresisWorkDensity() > 0.0))
+        return 60;
+
+    // The return path has nonzero remanence and therefore differs from the
+    // virgin magnetization curve at the same applied field.
+    const double remanenceBeforeReverseDrive = coreSample.fluxDensityTesla;
+    magneticCore.advance(-1200.0, coreDt);
+    const auto remanentState = magneticCore.advance(0.0, coreDt);
+    if (!(remanentState.fluxDensityTesla < remanenceBeforeReverseDrive))
+        return 61;
 
     // Use the detailed device in subsequent assembled amplifier tests too.
     transistor.setAdvancedParameters(detailedParameters);
