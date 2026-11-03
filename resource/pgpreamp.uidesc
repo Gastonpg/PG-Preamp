@@ -75,6 +75,23 @@
               title="−12 dB  …  +12 dB" font="~ NormalFontSmall"
               font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="COnOffButton" control-tag="AStage" bitmap="StageSwitch"
+              origin="388, 336" size="44, 56"
+              min-value="0" max-value="1" default-value="1"
+              tooltip="Enable the discrete transistor A Stage" mouse-enabled="true"/>
+        <view class="CTextLabel" origin="355, 393" size="110, 16"
+              title="A STAGE" font="~ NormalFontSmall"
+              font-antialias="true" font-color="Text" text-alignment="center"
+              style-no-frame="true" transparent="true"/>
+        <view class="COnOffButton" control-tag="Iron" bitmap="StageSwitch"
+              origin="503, 336" size="44, 56"
+              min-value="0" max-value="1" default-value="0"
+              tooltip="Enable the loaded magnetic input transformer" mouse-enabled="true"/>
+        <view class="CTextLabel" origin="486, 393" size="78, 16"
+              title="IRON" font="~ NormalFontSmall"
+              font-antialias="true" font-color="Text" text-alignment="center"
+              style-no-frame="true" transparent="true"/>
+
         <view class="CTextLabel" origin="42, 385" size="500, 16"
               title="PG AUDIO  ·  CIRCUIT ENGINE IN DEVELOPMENT"
               font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
@@ -91,5 +108,7 @@
         <control-tag name="Bypass" tag="100"/>
         <control-tag name="Input" tag="101"/>
         <control-tag name="Output" tag="102"/>
+        <control-tag name="AStage" tag="103"/>
+        <control-tag name="Iron" tag="104"/>
     </control-tags>
 </vstgui-ui-description>
