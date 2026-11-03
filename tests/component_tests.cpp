@@ -621,6 +621,7 @@ int main()
     double pluginStageInputSquares = 0.0;
     double pluginStageOutputSquares = 0.0;
     double pluginStageOutputSum = 0.0;
+    double pluginStageCorrelation = 0.0;
     constexpr int pluginStageSamples = 960;
     constexpr int pluginStageMeasurementStart = 96;
     for (int sample = 0; sample < pluginStageSamples; ++sample)
@@ -638,6 +639,7 @@ int main()
                 static_cast<double>(pluginStageResult.output) *
                 pluginStageResult.output;
             pluginStageOutputSum += pluginStageResult.output;
+            pluginStageCorrelation += input * pluginStageResult.output;
         }
     }
     const double pluginStageMeasuredSamples =
@@ -651,6 +653,8 @@ int main()
     if (!(pluginStageGain > 2.0 && pluginStageGain < 8.0) ||
         !near(pluginStageGain, 4.14469, 0.01))
         return 108;
+    if (!(pluginStageCorrelation < 0.0))
+        return 109;
     std::cout << "Plugin A Stage reference gain=" << pluginStageGain << "x\\n";
 
     // Real-time loaded transformer: the primary is driven through a source
