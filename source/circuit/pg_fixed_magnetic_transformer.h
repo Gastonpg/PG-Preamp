@@ -46,7 +46,7 @@ public:
     struct ProcessResult
     {
         bool converged = false;
-        float outputVolts = 0.0f;
+        double outputVolts = 0.0;
         unsigned iterations = 0;
         double residualVolts = std::numeric_limits<double>::infinity();
         double magnetizingFieldAmpsPerMeter = 0.0;
@@ -117,7 +117,7 @@ public:
         lastResult_.converged = configured_;
     }
 
-    bool processSample(float inputVolts, ProcessResult& result) noexcept
+    bool processSample(double inputVolts, ProcessResult& result) noexcept
     {
         result = lastResult_;
         if (!configured_ || !std::isfinite(inputVolts))
@@ -187,13 +187,13 @@ public:
         lastResult_.secondaryCurrentAmps = evaluation.secondaryCurrentAmps;
         lastResult_.primaryInducedVoltageVolts = evaluation.primaryInducedVoltageVolts;
         lastResult_.secondaryInducedVoltageVolts = evaluation.secondaryInducedVoltageVolts;
-        lastResult_.outputVolts = static_cast<float>(evaluation.outputVolts);
+        lastResult_.outputVolts = evaluation.outputVolts;
 
         result = lastResult_;
         return true;
     }
 
-    float processSample(float inputVolts) noexcept
+    double processSample(double inputVolts) noexcept
     {
         ProcessResult result;
         return processSample(inputVolts, result) ? result.outputVolts : lastResult_.outputVolts;
