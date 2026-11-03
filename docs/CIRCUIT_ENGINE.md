@@ -30,7 +30,17 @@ A current-driven capacitor stores dielectric voltage and includes series equival
 
 ### Inductor (L)
 
-The component-level model tracks winding current with series winding resistance. In the network solver, an inductor is an MNA branch-current unknown with a backward-Euler constitutive equation. This permits the solver to connect inductors into larger RLC networks. Magnetic saturation, hysteresis, core loss and mutual coupling are not yet included.
+The component-level model tracks winding current with series winding resistance. In the network solver, an inductor is an MNA branch-current unknown with a backward-Euler constitutive equation. This permits inductors to connect into larger RLC networks. Magnetic saturation, hysteresis and core loss are not yet included.
+
+### Coupled transformer windings
+
+Two inductor branches can be coupled with signed mutual inductance:
+
+M = k * sqrt(Lp * Ls)
+
+where k is the signed coupling coefficient and |k| < 1. The sign represents winding polarity/dot convention. Each winding retains its own resistance and current state, while the MNA branch equations contain symmetric cross-coupling terms. A loaded 100:1 inductance-ratio test verifies the expected voltage turns ratio within tolerance.
+
+This is a linear coupled-winding model. It does not yet simulate nonlinear permeability, core saturation, hysteresis, frequency-dependent core loss, or winding capacitance. It is not a complete transformer emulation.
 
 ### NPN transistor
 
@@ -45,6 +55,7 @@ This is a static junction model only. It does not yet include Early effect, ohmi
 - resistor conductance and temperature-dependent resistance;
 - capacitor companion conductance and history current, including explicit ESR and leakage branches;
 - inductor branch-current equations and winding resistance;
+- mutual-inductance cross-coupling between winding branches;
 - ideal voltage/current sources;
 - nonlinear NPN terminal currents and their analytic Jacobian.
 
@@ -54,20 +65,21 @@ A pivoted dense linear solve handles each Newton update. This is deliberately a 
 
 The automated component suite currently checks:
 
-1. R, L and C component equations, resistor temperature coefficients, and resistor thermal-noise statistics.
+1. R, L and C component equations, resistor temperature coefficients and thermal-noise statistics.
 2. An RC network against its backward-Euler transient recurrence.
 3. An RL network against its backward-Euler branch-current recurrence.
-4. NPN terminal-current conservation and the analytic Jacobian against finite differences.
-5. A 12 V common-emitter test stage with a base divider, collector/emitter resistors and a nonlinear NPN transistor, solving its DC bias point.
-6. The same class of common-emitter stage with input/output coupling capacitors, source resistance and output load, verifying nonzero AC gain and phase inversion.
+4. Two coupled windings under load, checking the expected turns ratio.
+5. NPN terminal-current conservation and the analytic Jacobian against finite differences.
+6. A 12 V common-emitter test stage with a base divider, collector/emitter resistors and a nonlinear NPN transistor, solving its DC bias point.
+7. A common-emitter stage with input/output coupling capacitors, source resistance and output load, verifying nonzero AC gain and phase inversion.
 
-The common-emitter test is a solver validation fixture, not a claim that this is the final PG Preamp topology or an exact 1073 circuit.
+The common-emitter circuit is a solver validation fixture, not a claim that this is the final PG Preamp topology or an exact 1073 circuit.
 
 ## Next physical-model milestones
 
 1. Add transistor series resistances, Early effect and junction/diffusion charge using sourced device parameters.
 2. Add capacitor dielectric absorption and inductor core-loss behavior as separately validated models.
-3. Implement coupled transformer windings with magnetizing/leakage inductance, winding resistance, interwinding capacitance and a documented core model.
+3. Extend the coupled transformer model with winding capacitance, core losses and a nonlinear magnetic model with documented parameters.
 4. Select and validate the PG Preamp's actual input, gain and output topology from a circuit-level reference design.
 5. Profile accuracy, stability and CPU cost, then build a fixed-topology real-time solver or derive an efficient state-space implementation. Only after those steps should the model enter the VST3 audio path.
 
