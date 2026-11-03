@@ -516,6 +516,7 @@ int main()
         0.0, amplifierOutputSquares / measuredSamples - outputMean * outputMean));
     const double inputRms = std::sqrt(amplifierInputSquares / measuredSamples);
     const double measuredVoltageGain = outputAcRms / inputRms;
+    const double mnaReferenceVoltageGain = measuredVoltageGain;
 
     if (!(outputPeak - outputTrough > 0.02 && measuredVoltageGain > 2.0))
     {
@@ -625,8 +626,12 @@ int main()
     const double realtimeOutputRms = std::sqrt(std::max(
         0.0, realtimeOutputSquares / realtimeMeasuredSamples -
              realtimeOutputMean * realtimeOutputMean));
-    if (!(realtimeOutputRms / realtimeInputRms > 2.0))
+    const double realtimeVoltageGain = realtimeOutputRms / realtimeInputRms;
+    if (!(realtimeVoltageGain > 2.0))
         return 74;
+    if (!near(realtimeVoltageGain, mnaReferenceVoltageGain,
+              mnaReferenceVoltageGain * 0.05))
+        return 79;
     if (!(realtimeInputCorrelation < 0.0))
         return 75;
     if (maximumObservedIterations > realtimeParameters.maximumNewtonIterations)
