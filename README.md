@@ -9,12 +9,13 @@ This branch develops and tests physical component models independently of the pl
 - Resistor: Ohm's law, power dissipation, temperature coefficients and Johnson-Nyquist noise.
 - Capacitor: stored voltage/charge behavior, ESR and leakage.
 - Inductor: inductance and winding resistance.
+- Coupled windings: mutual inductance, polarity, separate winding resistance and a loaded turns-ratio test.
 - NPN transistor: static Ebers-Moll junction currents, temperature scaling and analytic conductance.
-- MNA solver: combines R, C, L, sources and nonlinear NPN devices using Newton iterations.
-- Verified RC and RL transients, DC transistor bias and an AC-coupled common-emitter test stage.
+- MNA solver: combines R, C, L, sources, coupled windings and nonlinear NPN devices using Newton iterations.
+- Verified RC/RL transients, transformer turns ratio, transistor DC bias and an AC-coupled common-emitter test stage.
 - Linux circuit-test workflow plus Windows x64 VST3 build workflow.
 
-The network solver is currently an offline validation tool, not part of the plugin's real-time audio path. The common-emitter circuit is a proof-of-solver fixture, not the final PG Preamp topology.
+The network solver is currently an offline validation tool, not part of the plugin's real-time audio path. The common-emitter and coupled-winding circuits are engineering test fixtures, not the final PG Preamp topology or a claim of exact hardware emulation.
 
 ## Build and test
 
