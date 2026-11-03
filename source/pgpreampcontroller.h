@@ -13,6 +13,7 @@ public:
     }
 
     tresult PLUGIN_API initialize(FUnknown* context) SMTG_OVERRIDE;
+    tresult PLUGIN_API setComponentState(IBStream* state) SMTG_OVERRIDE;
 };
 
 } // namespace Steinberg
