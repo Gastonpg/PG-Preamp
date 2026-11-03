@@ -273,6 +273,71 @@ int main()
           amplifierBias.nodeVoltage(collector) < 10.0))
         return 39;
 
-    std::cout << "PG Circuit Engine: R, L, C, NPN and MNA network tests passed.\\n";
+    // Full common-emitter stage with both coupling capacitors, source
+    // resistance, divider bias, collector/emitter resistors and output load.
+    MnaCircuit amplifier;
+    const auto ampSupply = amplifier.createNode();
+    const auto signalSource = amplifier.createNode();
+    const auto coupledInput = amplifier.createNode();
+    const auto ampBase = amplifier.createNode();
+    const auto ampCollector = amplifier.createNode();
+    const auto ampEmitter = amplifier.createNode();
+    const auto ampOutput = amplifier.createNode();
+
+    amplifier.setInitialNodeVoltage(ampSupply, 12.0);
+    amplifier.setInitialNodeVoltage(signalSource, 0.0);
+    amplifier.setInitialNodeVoltage(coupledInput, 0.0);
+    amplifier.setInitialNodeVoltage(ampBase, 1.65);
+    amplifier.setInitialNodeVoltage(ampCollector, 7.5);
+    amplifier.setInitialNodeVoltage(ampEmitter, 0.95);
+    amplifier.setInitialNodeVoltage(ampOutput, 0.0);
+
+    amplifier.addVoltageSource(ampSupply, MnaCircuit::ground, 12.0);
+    const auto signalSourceId =
+        amplifier.addVoltageSource(signalSource, MnaCircuit::ground, 0.0);
+    amplifier.addResistor(ampSupply, ampBase, 100000.0);
+    amplifier.addResistor(ampBase, MnaCircuit::ground, 18000.0);
+    amplifier.addResistor(ampSupply, ampCollector, 4700.0);
+    amplifier.addResistor(ampEmitter, MnaCircuit::ground, 1000.0);
+    amplifier.addResistor(signalSource, coupledInput, 600.0);
+    amplifier.addResistor(ampOutput, MnaCircuit::ground, 100000.0);
+    amplifier.addNpn(ampBase, ampCollector, ampEmitter, transistor);
+    amplifier.addCapacitor(coupledInput, ampBase, 10.0e-6, 0.5, 1.0e9, -1.65);
+    amplifier.addCapacitor(ampCollector, ampOutput, 10.0e-6, 0.5, 1.0e9, 7.5);
+
+    const auto initialAmpSolve = amplifier.step(solverDt, 300.15, 100, 1.0e-9);
+    if (!initialAmpSolve.converged)
+        return 40;
+
+    double inputOutputCorrelation = 0.0;
+    double outputPeak = 0.0;
+    double outputTrough = 0.0;
+    constexpr int ampSamples = 480;
+    constexpr double inputAmplitude = 0.005;
+    for (int sample = 0; sample < ampSamples; ++sample)
+    {
+        const double input = inputAmplitude *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        if (!amplifier.setVoltageSource(signalSourceId, input))
+            return 41;
+        const auto solved = amplifier.step(solverDt, 300.15, 100, 1.0e-9);
+        if (!solved.converged)
+            return 42;
+
+        const double output = amplifier.nodeVoltage(ampOutput);
+        if (sample >= 48)
+        {
+            inputOutputCorrelation += input * output;
+            outputPeak = std::max(outputPeak, output);
+            outputTrough = std::min(outputTrough, output);
+        }
+    }
+
+    if (!(outputPeak > 0.01 && outputTrough < -0.01))
+        return 43;
+    if (!(inputOutputCorrelation < 0.0))
+        return 44;
+
+    std::cout << "PG Circuit Engine: R, L, C, NPN, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
 }
