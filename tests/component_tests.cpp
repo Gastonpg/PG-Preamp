@@ -1097,62 +1097,82 @@ int main()
               << bc550cLowDriveThd * 100.0 << "%, 40 mV="
               << bc550cMaximumDriveThd * 100.0 << "%\\n";
 
-    // Small-signal frequency-response survey at integer-cycle frequencies.
+    // Compare both A Stage transistor profiles with the same audio-band
+    // small-signal sweep. The M1 profile remains the shipping/auditioned path.
     constexpr double stageSweepRate = 240000.0;
     const std::array<int, 8> stagePeriods = {
         12000, 4800, 2400, 240, 48, 24, 16, 12
     }; // 20 Hz, 50 Hz, 100 Hz, 1 kHz, 5 kHz, 10 kHz, 15 kHz, 20 kHz
-    std::array<double, stagePeriods.size()> stageFrequencyGains{};
+    const auto measureStageResponse = [&](const EbersMollNpn& measurementTransistor,
+                                           double& oneKhzGain,
+                                           double& maximumDeviationDb)
+    {
+        std::array<double, stagePeriods.size()> frequencyGains{};
+        oneKhzGain = 0.0;
+        maximumDeviationDb = 0.0;
+        for (std::size_t frequencyIndex = 0;
+             frequencyIndex < stagePeriods.size(); ++frequencyIndex)
+        {
+            const int period = stagePeriods[frequencyIndex];
+            FixedCommonEmitterStage sweepStage;
+            if (!sweepStage.prepare(
+                    stageSweepRate,
+                    PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                    measurementTransistor))
+                return false;
+
+            const int settleSamples = period * 6;
+            const int measurementSamples = period * 4;
+            double inputEnergy = 0.0;
+            double outputEnergy = 0.0;
+            for (int sample = 0; sample < settleSamples + measurementSamples; ++sample)
+            {
+                const double input = 0.005 *
+                    std::sin(2.0 * pi * sample / static_cast<double>(period));
+                FixedCommonEmitterStage::ProcessResult result;
+                if (!sweepStage.processSample(static_cast<float>(input), result))
+                    return false;
+                if (sample >= settleSamples)
+                {
+                    inputEnergy += input * input;
+                    outputEnergy += static_cast<double>(result.output) * result.output;
+                }
+            }
+            const double gain = std::sqrt(outputEnergy / inputEnergy);
+            if (!std::isfinite(gain) || !(gain > 0.0))
+                return false;
+            frequencyGains[frequencyIndex] = gain;
+            if (frequencyIndex == 3)
+                oneKhzGain = gain;
+        }
+        if (!(oneKhzGain > 0.0))
+            return false;
+        for (const double gain : frequencyGains)
+        {
+            const double deviationDb = 20.0 * std::log10(gain / oneKhzGain);
+            maximumDeviationDb = std::max(maximumDeviationDb, std::abs(deviationDb));
+        }
+        return std::isfinite(maximumDeviationDb);
+    };
+
     double stageOneKhzGain = 0.0;
     double maximumStageResponseDeviationDb = 0.0;
-    for (std::size_t frequencyIndex = 0;
-         frequencyIndex < stagePeriods.size(); ++frequencyIndex)
-    {
-        const int period = stagePeriods[frequencyIndex];
-        FixedCommonEmitterStage sweepStage;
-        if (!sweepStage.prepare(
-                stageSweepRate,
-                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
-                pluginDefaultTransistor))
-            return 116;
-
-        const int settleSamples = period * 6;
-        const int measurementSamples = period * 4;
-        double inputEnergy = 0.0;
-        double outputEnergy = 0.0;
-        for (int sample = 0; sample < settleSamples + measurementSamples; ++sample)
-        {
-            const double input = 0.005 *
-                std::sin(2.0 * pi * sample / static_cast<double>(period));
-            FixedCommonEmitterStage::ProcessResult result;
-            if (!sweepStage.processSample(static_cast<float>(input), result))
-                return 117;
-            if (sample >= settleSamples)
-            {
-                inputEnergy += input * input;
-                outputEnergy += static_cast<double>(result.output) * result.output;
-            }
-        }
-        const double gain = std::sqrt(outputEnergy / inputEnergy);
-        if (!std::isfinite(gain) || !(gain > 0.0))
-            return 118;
-        stageFrequencyGains[frequencyIndex] = gain;
-        if (frequencyIndex == 3)
-            stageOneKhzGain = gain;
-    }
-    if (!(stageOneKhzGain > 0.0))
-        return 119;
-    for (std::size_t frequencyIndex = 0;
-         frequencyIndex < stageFrequencyGains.size(); ++frequencyIndex)
-    {
-        const double deviationDb = 20.0 * std::log10(
-            stageFrequencyGains[frequencyIndex] / stageOneKhzGain);
-        maximumStageResponseDeviationDb = std::max(
-            maximumStageResponseDeviationDb, std::abs(deviationDb));
-    }
+    double bc550cOneKhzGain = 0.0;
+    double maximumBc550cResponseDeviationDb = 0.0;
+    if (!measureStageResponse(pluginDefaultTransistor,
+                              stageOneKhzGain,
+                              maximumStageResponseDeviationDb))
+        return 116;
+    if (!measureStageResponse(cordellBc550c,
+                              bc550cOneKhzGain,
+                              maximumBc550cResponseDeviationDb))
+        return 141;
     std::cout << "PG A Stage M1 20 Hz..20 kHz sweep: 1 kHz gain="
               << stageOneKhzGain << "x, max deviation="
               << maximumStageResponseDeviationDb << " dB\\n";
+    std::cout << "BC550C reference A Stage 20 Hz..20 kHz sweep: 1 kHz gain="
+              << bc550cOneKhzGain << "x, max deviation="
+              << maximumBc550cResponseDeviationDb << " dB\\n";
 
     // Aliasing survey at a high vocal-band frequency and the maximum nominal
     // A Stage drive. At 48 kHz, harmonics above Nyquist fold back into band;
