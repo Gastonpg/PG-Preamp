@@ -1039,6 +1039,88 @@ int main()
               << " V, 1 kHz gain at 40 mV="
               << bc550cMeasuredGain << "x\\n";
 
+    // The alternate BC550C reference must also tolerate temperature and
+    // bias-network spread without losing its forward-active Class-A envelope.
+    for (const double temperature : {273.15, 300.15, 343.15})
+    {
+        const auto temperatureDevice =
+            PGAudio::Circuit::PgAStageBc550CReference::makeTransistor(temperature);
+        FixedCommonEmitterStage temperatureStage;
+        if (!temperatureStage.prepare(
+                48000.0,
+                PGAudio::Circuit::PgAStageBc550CReference::makeStageParameters(),
+                temperatureDevice))
+            return 142;
+        const auto& bias = temperatureStage.biasOperatingPoint();
+        if (!bias.converged || !(bias.collectorCurrentAmps > 0.0) ||
+            !(bias.collectorEmitterVolts > 1.0))
+            return 143;
+
+        double minimumCurrent = std::numeric_limits<double>::infinity();
+        for (int sample = 0; sample < classAHeadroomSamples; ++sample)
+        {
+            const double input = maximumNominalInputPeakVolts *
+                std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!temperatureStage.processSample(static_cast<float>(input), result) ||
+                !(result.collectorCurrentAmps > 0.0) ||
+                !(result.collectorEmitterVolts > 0.2))
+                return 144;
+            minimumCurrent = std::min(minimumCurrent, result.collectorCurrentAmps);
+        }
+        std::cout << "BC550C reference A Stage temperature "
+                  << temperature << " K: bias Ic="
+                  << bias.collectorCurrentAmps * 1000.0
+                  << " mA, Vce=" << bias.collectorEmitterVolts
+                  << " V, min-cycle Ic=" << minimumCurrent * 1000.0
+                  << " mA\\n";
+    }
+
+    double bc550cToleranceMinimumCurrent =
+        std::numeric_limits<double>::infinity();
+    double bc550cToleranceMinimumVce =
+        std::numeric_limits<double>::infinity();
+    for (int corner = 0; corner < 16; ++corner)
+    {
+        auto parameters =
+            PGAudio::Circuit::PgAStageBc550CReference::makeStageParameters();
+        const auto scale = [corner](int bit)
+        {
+            return (corner & (1 << bit)) != 0 ? 1.05 : 0.95;
+        };
+        parameters.baseFeedResistanceOhms *= scale(0);
+        parameters.baseReturnResistanceOhms *= scale(1);
+        parameters.collectorResistanceOhms *= scale(2);
+        parameters.emitterResistanceOhms *= scale(3);
+
+        FixedCommonEmitterStage cornerStage;
+        if (!cornerStage.prepare(48000.0, parameters, cordellBc550c))
+            return 145;
+        if (!cornerStage.biasOperatingPoint().converged ||
+            !(cornerStage.biasOperatingPoint().collectorCurrentAmps > 0.0) ||
+            !(cornerStage.biasOperatingPoint().collectorEmitterVolts > 1.0))
+            return 146;
+
+        for (int sample = 0; sample < classAHeadroomSamples; ++sample)
+        {
+            const double input = maximumNominalInputPeakVolts *
+                std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!cornerStage.processSample(static_cast<float>(input), result) ||
+                !(result.collectorCurrentAmps > 0.0) ||
+                !(result.collectorEmitterVolts > 0.2))
+                return 147;
+            bc550cToleranceMinimumCurrent = std::min(
+                bc550cToleranceMinimumCurrent, result.collectorCurrentAmps);
+            bc550cToleranceMinimumVce = std::min(
+                bc550cToleranceMinimumVce, result.collectorEmitterVolts);
+        }
+    }
+    std::cout << "BC550C reference A Stage +/-5% bias corners: worst-cycle min Ic="
+              << bc550cToleranceMinimumCurrent * 1000.0
+              << " mA, min Vce=" << bc550cToleranceMinimumVce
+              << " V\\n";
+
     // Measure distortion at two useful drive levels with an integer-cycle
     // DFT window. This is a deterministic circuit-model regression, not a
     // physical hardware measurement.
