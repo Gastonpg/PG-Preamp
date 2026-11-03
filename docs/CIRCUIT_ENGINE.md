@@ -43,7 +43,7 @@ The current state follows the exact first-order response of an ideal inductance 
 
 The first transistor primitive calculates collector, base and emitter currents from base-emitter and base-collector junction voltages, using saturation current, forward/reverse beta and absolute temperature. Terminal-current sign conventions are explicit and KCL is checked by tests.
 
-This is a static junction model only. It does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not connected to the audio path and is not claimed to reproduce a particular BC184C or 2N3055 device.
+This is a static junction model only. It includes SPICE-style temperature scaling for saturation current (band-gap energy and XTI) and beta (XTB), but does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not connected to the audio path and is not claimed to reproduce a particular BC184C or 2N3055 device. Temperature equations follow the ngspice BJT model documentation: https://ngspice.sourceforge.io/docs/ngspice-44-manual.pdf
 
 ## Next candidates
 
