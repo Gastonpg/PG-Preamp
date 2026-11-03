@@ -745,6 +745,40 @@ int main()
     const double transformerNonHarmonicSpur = std::max(
         spectralAmplitude(101),
         std::max(spectralAmplitude(137), spectralAmplitude(173)));
+
+    // Estimate the complete non-harmonic spectral residual (noise-like bins),
+    // not just a few hand-picked frequencies. Goertzel recurrence avoids
+    // repeated sin/cos evaluation for every sample/bin.
+    double transformerBroadbandResidualPower = 0.0;
+    constexpr int transformerSpectrumBins =
+        transformerMeasurementSamples / 2;
+    for (int bin = 1; bin <= transformerSpectrumBins; ++bin)
+    {
+        if ((bin % 90) == 0)
+            continue; // exclude the fundamental and its integer harmonics
+
+        const double omega = 2.0 * pi * bin /
+            static_cast<double>(transformerMeasurementSamples);
+        const double coefficient = 2.0 * std::cos(omega);
+        double state1 = 0.0;
+        double state2 = 0.0;
+        for (int n = 0; n < transformerMeasurementSamples; ++n)
+        {
+            const double state0 =
+                transformerAudioOutput[static_cast<std::size_t>(n)] +
+                coefficient * state1 - state2;
+            state2 = state1;
+            state1 = state0;
+        }
+        const double power = state1 * state1 + state2 * state2 -
+                             coefficient * state1 * state2;
+        transformerBroadbandResidualPower += std::max(0.0, power);
+    }
+    const double transformerBroadbandResidual =
+        2.0 * std::sqrt(transformerBroadbandResidualPower) /
+        (static_cast<double>(transformerMeasurementSamples) *
+         transformerFundamental);
+
     double transformerHarmonicPower = 0.0;
     for (int harmonic = 2; harmonic <= 24; ++harmonic)
     {
@@ -757,13 +791,16 @@ int main()
 
     if (!(transformerFundamental > 1.0e-6) ||
         transformerNonHarmonicSpur > transformerFundamental * 1.0e-3 ||
+        transformerBroadbandResidual > 1.0e-3 ||
         transformerLowLevelThd > 0.005)
         return 98;
 
     std::cout << "Iron 10468-equivalent reference: small-signal gain="
               << transformerGain << "x, non-harmonic spur="
               << transformerNonHarmonicSpur / transformerFundamental
-              << ", low-level THD=" << transformerLowLevelThd << "\\n";
+              << ", low-level THD=" << transformerLowLevelThd
+              << ", broadband residual=" << transformerBroadbandResidual
+              << "\\n";
     if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
         return 92;
 
