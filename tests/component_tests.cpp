@@ -7,6 +7,7 @@
 #include "circuit/pg_preisach_core.h"
 #include "circuit/pg_magnetic_transformer.h"
 #include "circuit/pg_fixed_common_emitter.h"
+#include "circuit/pg_fixed_magnetic_transformer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -608,6 +609,103 @@ int main()
     {
         std::cerr << "Startup silence transient: peak=" << startupSilencePeak << "\\n";
         return 85;
+    }
+
+    // Real-time loaded transformer: the primary is driven through a source
+    // resistance, the secondary is terminated, and winding currents satisfy
+    // Ampere's law while induced voltages obey Faraday's law.
+    using FixedMagneticTransformerStage =
+        PGAudio::Circuit::FixedMagneticTransformerStage;
+    FixedMagneticTransformerStage::Parameters transformerParameters;
+    FixedMagneticTransformerStage::Parameters defaultTransformerParameters;
+    FixedMagneticTransformerStage transformerStage;
+    if (!transformerStage.prepare(48000.0, transformerParameters))
+        return 86;
+
+    double transformerStartupPeak = 0.0;
+    for (int sample = 0; sample < 256; ++sample)
+    {
+        FixedMagneticTransformerStage::ProcessResult transformerResult;
+        if (!transformerStage.processSample(0.0f, transformerResult))
+            return 87;
+        transformerStartupPeak = std::max(
+            transformerStartupPeak,
+            std::abs(static_cast<double>(transformerResult.outputVolts)));
+    }
+    if (transformerStartupPeak > 1.0e-7)
+        return 88;
+
+    double transformerInputSquares = 0.0;
+    double transformerOutputSquares = 0.0;
+    double transformerFluxPeak = 0.0;
+    constexpr int transformerAudioSamples = 4800;
+    for (int sample = 0; sample < transformerAudioSamples; ++sample)
+    {
+        const double input = 0.005 *
+            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        FixedMagneticTransformerStage::ProcessResult transformerResult;
+        if (!transformerStage.processSample(
+                static_cast<float>(input), transformerResult))
+            return 89;
+        if (!std::isfinite(transformerResult.outputVolts) ||
+            !std::isfinite(transformerResult.primaryCurrentAmps) ||
+            !std::isfinite(transformerResult.secondaryCurrentAmps) ||
+            !std::isfinite(transformerResult.fluxDensityTesla))
+            return 90;
+        transformerFluxPeak = std::max(
+            transformerFluxPeak, std::abs(transformerResult.fluxDensityTesla));
+        if (sample >= 480)
+        {
+            transformerInputSquares += input * input;
+            transformerOutputSquares +=
+                static_cast<double>(transformerResult.outputVolts) *
+                transformerResult.outputVolts;
+        }
+    }
+    const double transformerGain = std::sqrt(
+        transformerOutputSquares / transformerInputSquares);
+    if (!(transformerGain > 0.75 && transformerGain < 1.05))
+        return 91;
+    if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
+        return 92;
+
+    // A deliberately high-level, low-frequency drive exercises the nonlinear
+    // core region. The reduced-order core must remain finite and bounded.
+    transformerStage.reset();
+    double highLevelFluxPeak = 0.0;
+    for (int sample = 0; sample < 9600; ++sample)
+    {
+        const double input = 5.0 *
+            std::sin(2.0 * pi * 10.0 * sample / 48000.0);
+        FixedMagneticTransformerStage::ProcessResult transformerResult;
+        if (!transformerStage.processSample(
+                static_cast<float>(input), transformerResult))
+            return 93;
+        if (!std::isfinite(transformerResult.outputVolts) ||
+            !std::isfinite(transformerResult.fluxDensityTesla))
+            return 94;
+        highLevelFluxPeak = std::max(
+            highLevelFluxPeak, std::abs(transformerResult.fluxDensityTesla));
+    }
+    if (!(highLevelFluxPeak > transformerFluxPeak &&
+          highLevelFluxPeak < 1.5))
+        return 95;
+
+    // The fixed transformer must remain stable at common host sample rates.
+    for (const double rate : {44100.0, 48000.0, 96000.0, 192000.0})
+    {
+        FixedMagneticTransformerStage multirateTransformer;
+        if (!multirateTransformer.prepare(rate, transformerParameters))
+            return 96;
+        for (int sample = 0; sample < 512; ++sample)
+        {
+            const float input = static_cast<float>(
+                0.02 * std::sin(2.0 * pi * 300.0 * sample / rate));
+            FixedMagneticTransformerStage::ProcessResult transformerResult;
+            if (!multirateTransformer.processSample(input, transformerResult) ||
+                !std::isfinite(transformerResult.outputVolts))
+                return 97;
+        }
     }
 
     // Fixed-topology real-time candidate: same device model, fixed resistor
