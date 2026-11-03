@@ -47,7 +47,10 @@ The fixed common-emitter test circuit measures about 4.14469x small-signal volta
 
 ## Build and download
 
-No local compiler or SDK installation is required. The latest successful Windows build will be linked here after the current integration build completes. Open the repository's [Actions page](https://github.com/Gastonpg/PG-Preamp/actions) and download **PG-Preamp-Windows-x64** from the successful build run.
+No local compiler or SDK installation is required. The latest Windows x64 build of this experimental DSP/editor branch passed the Steinberg VST3 validator (47 passed, 0 failed), the sample-accuracy automation check and the component/network test suite.
+
+- [Download PG-Preamp-Windows-x64](https://github.com/Gastonpg/PG-Preamp/actions/runs/41578841109/artifacts/13204538921)
+- [View successful Windows build and validation](https://github.com/Gastonpg/PG-Preamp/actions/runs/41578841109)
 
 See [docs/CIRCUIT_ENGINE.md](docs/CIRCUIT_ENGINE.md) for model assumptions, validation tests, calibration boundaries and remaining milestones.
 
