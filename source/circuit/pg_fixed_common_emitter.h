@@ -39,7 +39,7 @@ public:
     struct ProcessResult
     {
         bool converged = false;
-        float output = 0.0f;
+        double output = 0.0;
         unsigned iterations = 0;
         double residualAmps = std::numeric_limits<double>::infinity();
         double baseVolts = 0.0;
@@ -109,7 +109,7 @@ public:
         biasReady_ = initializeBiasPoint();
     }
 
-    bool processSample(float inputVolts, ProcessResult& result) noexcept
+    bool processSample(double inputVolts, ProcessResult& result) noexcept
     {
         result = lastResult_;
         if (!configured_ || !biasReady_ || !std::isfinite(inputVolts))
@@ -200,7 +200,7 @@ public:
 
         solution_ = candidate;
         lastResult_.converged = true;
-        lastResult_.output = static_cast<float>(candidate[6]);
+        lastResult_.output = candidate[6];
         lastResult_.iterations = iterations;
         lastResult_.residualAmps = residualNorm;
         lastResult_.baseVolts = candidate[0];
@@ -215,7 +215,7 @@ public:
         return true;
     }
 
-    float processSample(float inputVolts) noexcept
+    double processSample(double inputVolts) noexcept
     {
         ProcessResult result;
         return processSample(inputVolts, result) ? result.output : lastResult_.output;
