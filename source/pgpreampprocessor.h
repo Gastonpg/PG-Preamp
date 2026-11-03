@@ -26,6 +26,7 @@ public:
     tresult PLUGIN_API canProcessSampleSize(int32 symbolicSampleSize) SMTG_OVERRIDE;
 
 private:
+    void applyParameter(Vst::ParamID id, Vst::ParamValue value) noexcept;
     void updateParameters(Vst::ProcessData& data) noexcept;
     static double decibelsToLinear(double decibels) noexcept;
 
@@ -34,6 +35,11 @@ private:
 
     double inputGainNormalized_ = 0.4;
     double outputGainNormalized_ = 0.5;
+    double mixSmoothingCoefficient_ = 1.0;
+    double aStageMix_ = 1.0;
+    double ironMix_ = 0.0;
+    double bypassMix_ = 0.0;
+
     bool bypass_ = false;
     bool aStageEnabled_ = true;
     bool ironEnabled_ = false;
