@@ -3,6 +3,7 @@
 #include "circuit/pg_capacitor.h"
 #include "circuit/pg_inductor.h"
 #include "circuit/pg_bjt_ebers_moll.h"
+#include "circuit/pg_mna_solver.h"
 
 #include <cmath>
 #include <iostream>
@@ -174,6 +175,98 @@ int main()
     const auto hotAtSameBias = hotTransistor.evaluate(vbe, 5.0, 0.0);
     if (!(hotAtSameBias.collectorAmps > forwardActive.collectorAmps)) return 29;
 
-    std::cout << "PG Circuit Engine: R, L, C and NPN device tests passed.\n";
+    // Check the analytic BJT Jacobian against finite differences.
+    const auto analytic = transistor.evaluateWithDerivatives(0.68, 5.0, 0.0);
+    constexpr double derivativeStep = 1.0e-6;
+    const double terminalVoltages[3] = {0.68, 5.0, 0.0};
+    for (int column = 0; column < 3; ++column)
+    {
+        double perturbed[3] = {terminalVoltages[0], terminalVoltages[1], terminalVoltages[2]};
+        perturbed[column] += derivativeStep;
+        const auto plus = transistor.evaluate(perturbed[0], perturbed[1], perturbed[2]);
+        perturbed[column] -= 2.0 * derivativeStep;
+        const auto minus = transistor.evaluate(perturbed[0], perturbed[1], perturbed[2]);
+        const double plusCurrents[3] = {plus.baseAmps, plus.collectorAmps, plus.emitterAmps};
+        const double minusCurrents[3] = {minus.baseAmps, minus.collectorAmps, minus.emitterAmps};
+        for (int row = 0; row < 3; ++row)
+        {
+            const double numerical = (plusCurrents[row] - minusCurrents[row]) /
+                                     (2.0 * derivativeStep);
+            if (!near(analytic.conductance[row][column], numerical,
+                      std::max(1.0e-10, std::abs(numerical) * 1.0e-5)))
+                return 30;
+        }
+    }
+
+    // RC transient solved as an assembled network (1 kOhm driving 1 uF).
+    MnaCircuit rcNetwork;
+    const auto rcInput = rcNetwork.createNode();
+    const auto rcOutput = rcNetwork.createNode();
+    rcNetwork.addVoltageSource(rcInput, MnaCircuit::ground, 1.0);
+    rcNetwork.addResistor(rcInput, rcOutput, 1000.0);
+    rcNetwork.addCapacitor(rcOutput, MnaCircuit::ground, 1.0e-6);
+    constexpr double solverDt = 1.0 / 48000.0;
+    const double rcAlpha = solverDt / (1000.0 * 1.0e-6 + solverDt);
+    double expectedRcOutput = 0.0;
+    for (int sample = 0; sample < 120; ++sample)
+    {
+        const auto solved = rcNetwork.step(solverDt);
+        if (!solved.converged)
+            return 31;
+        expectedRcOutput += rcAlpha * (1.0 - expectedRcOutput);
+    }
+    if (!near(rcNetwork.nodeVoltage(rcOutput), expectedRcOutput, 1.0e-8))
+        return 32;
+
+    // RL transient solved as a branch-current MNA unknown.
+    MnaCircuit rlNetwork;
+    const auto rlSupply = rlNetwork.createNode();
+    rlNetwork.addVoltageSource(rlSupply, MnaCircuit::ground, 1.0);
+    rlNetwork.addInductor(rlSupply, MnaCircuit::ground, 1.0, 10.0);
+    double expectedRlCurrent = 0.0;
+    const double rlAlpha = solverDt / (1.0 / 10.0 + solverDt);
+    for (int sample = 0; sample < 120; ++sample)
+    {
+        const auto solved = rlNetwork.step(solverDt);
+        if (!solved.converged)
+            return 33;
+        expectedRlCurrent += rlAlpha * (0.1 - expectedRlCurrent);
+    }
+    if (!near(rlNetwork.inductorCurrent(0), expectedRlCurrent, 1.0e-8))
+        return 34;
+
+    // Complete common-emitter bias network: divider, collector/emitter
+    // resistors and a nonlinear NPN transistor are solved simultaneously.
+    MnaCircuit amplifierBias;
+    const auto supply = amplifierBias.createNode();
+    const auto base = amplifierBias.createNode();
+    const auto collector = amplifierBias.createNode();
+    const auto emitter = amplifierBias.createNode();
+    amplifierBias.addVoltageSource(supply, MnaCircuit::ground, 12.0);
+    amplifierBias.addResistor(supply, base, 100000.0);
+    amplifierBias.addResistor(base, MnaCircuit::ground, 18000.0);
+    amplifierBias.addResistor(supply, collector, 4700.0);
+    amplifierBias.addResistor(emitter, MnaCircuit::ground, 1000.0);
+    amplifierBias.addNpn(base, collector, emitter, transistor);
+    amplifierBias.setInitialNodeVoltage(supply, 12.0);
+    amplifierBias.setInitialNodeVoltage(base, 1.65);
+    amplifierBias.setInitialNodeVoltage(collector, 7.5);
+    amplifierBias.setInitialNodeVoltage(emitter, 0.95);
+    const auto biasResult = amplifierBias.step(solverDt, 300.15, 100, 1.0e-9);
+    if (!biasResult.converged)
+        return 35;
+    if (!near(amplifierBias.nodeVoltage(supply), 12.0, 1.0e-8))
+        return 36;
+    if (!(amplifierBias.nodeVoltage(base) > 1.4 &&
+          amplifierBias.nodeVoltage(base) < 1.8))
+        return 37;
+    if (!(amplifierBias.nodeVoltage(emitter) > 0.7 &&
+          amplifierBias.nodeVoltage(emitter) < 1.2))
+        return 38;
+    if (!(amplifierBias.nodeVoltage(collector) > 5.0 &&
+          amplifierBias.nodeVoltage(collector) < 10.0))
+        return 39;
+
+    std::cout << "PG Circuit Engine: R, L, C, NPN and MNA network tests passed.\\n";
     return 0;
 }
