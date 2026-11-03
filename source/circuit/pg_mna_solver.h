@@ -89,9 +89,9 @@ public:
         capacitors_.push_back(element);
     }
 
-    void addInductor(Node positive, Node negative, double inductanceHenries,
-                     double windingResistanceOhms = 0.0,
-                     double initialCurrentAmps = 0.0)
+    std::size_t addInductor(Node positive, Node negative, double inductanceHenries,
+                            double windingResistanceOhms = 0.0,
+                            double initialCurrentAmps = 0.0)
     {
         InductorElement element;
         element.positive = positive;
@@ -105,6 +105,28 @@ public:
         element.previousCurrentAmps =
             std::isfinite(initialCurrentAmps) ? initialCurrentAmps : 0.0;
         inductors_.push_back(element);
+        return inductors_.size() - 1;
+    }
+
+    // Couple two existing windings. The signed coefficient is the mutual
+    // inductance polarity / dot convention; |k| must be strictly below 1.
+    bool addMutualCoupling(std::size_t firstInductor, std::size_t secondInductor,
+                           double couplingCoefficient) noexcept
+    {
+        if (firstInductor >= inductors_.size() ||
+            secondInductor >= inductors_.size() ||
+            firstInductor == secondInductor ||
+            !std::isfinite(couplingCoefficient) ||
+            std::abs(couplingCoefficient) >= 1.0)
+            return false;
+
+        const double mutual = couplingCoefficient *
+            std::sqrt(inductors_[firstInductor].inductanceHenries *
+                      inductors_[secondInductor].inductanceHenries);
+        if (!std::isfinite(mutual))
+            return false;
+        mutualCouplings_.push_back({firstInductor, secondInductor, mutual});
+        return true;
     }
 
     std::size_t addVoltageSource(Node positive, Node negative, double voltage)
@@ -298,6 +320,12 @@ private:
         double windingResistanceOhms = 0.0;
         double previousCurrentAmps = 0.0;
     };
+    struct MutualCoupling
+    {
+        std::size_t first;
+        std::size_t second;
+        double mutualHenries;
+    };
     struct VoltageSource
     {
         Node positive;
@@ -456,6 +484,25 @@ private:
             jacobian[branch][branch] -= branchResistance;
         }
 
+        // Mutual-inductance terms couple the winding-current branch equations.
+        // The symmetric off-diagonal terms preserve magnetic energy for |k| < 1.
+        for (const auto& coupling : mutualCouplings_)
+        {
+            const std::size_t firstBranch = inductorOffset + coupling.first;
+            const std::size_t secondBranch = inductorOffset + coupling.second;
+            const double mutualOverDt = coupling.mutualHenries / dt;
+
+            residual[firstBranch] +=
+                -mutualOverDt * x[secondBranch] +
+                mutualOverDt * inductors_[coupling.second].previousCurrentAmps;
+            residual[secondBranch] +=
+                -mutualOverDt * x[firstBranch] +
+                mutualOverDt * inductors_[coupling.first].previousCurrentAmps;
+
+            jacobian[firstBranch][secondBranch] -= mutualOverDt;
+            jacobian[secondBranch][firstBranch] -= mutualOverDt;
+        }
+
         for (const auto& transistor : transistors_)
         {
             const auto evaluation = transistor.device.evaluateWithDerivatives(
@@ -547,6 +594,7 @@ private:
     std::vector<ResistorElement> resistors_;
     std::vector<CapacitorElement> capacitors_;
     std::vector<InductorElement> inductors_;
+    std::vector<MutualCoupling> mutualCouplings_;
     std::vector<VoltageSource> voltageSources_;
     std::vector<CurrentSource> currentSources_;
     std::vector<Transistor> transistors_;
