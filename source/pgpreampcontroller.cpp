@@ -27,9 +27,9 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
     input->setPrecision(1);
     parameters.addParameter(input);
 
-    // Output 0.5 maps to 0 dB in the -12 .. +12 dB range.
+    // Output 0.5 maps to 0 dB in the symmetric -18 .. +18 dB range.
     auto* output = new Vst::RangeParameter(
-        STR16("Output"), kPGPreampOutputGainId, STR16("dB"), -12.0, 12.0, 0.0);
+        STR16("Output"), kPGPreampOutputGainId, STR16("dB"), -18.0, 18.0, 0.0);
     output->setPrecision(1);
     parameters.addParameter(output);
 
@@ -67,11 +67,20 @@ tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
     streamer.readFloat(aStageValue);
     streamer.readFloat(ironValue);
 
+    // Version 2 stores Output on the new -18 .. +18 dB scale. For older
+    // sessions, convert the old -12 .. +12 dB value without changing level.
+    float stateVersion = 1.0f;
+    const bool hasCurrentOutputRange =
+        streamer.readFloat(stateVersion) && stateVersion >= 2.0f;
+    const double storedOutput = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
+    const double migratedOutput = hasCurrentOutputRange
+        ? storedOutput
+        : ((-12.0 + 24.0 * storedOutput) + 18.0) / 36.0;
+
     setParamNormalized(kPGPreampBypassId, bypassValue >= 0.5f ? 1.0 : 0.0);
     setParamNormalized(kPGPreampInputGainId,
                        std::clamp(static_cast<double>(inputValue), 0.0, 1.0));
-    setParamNormalized(kPGPreampOutputGainId,
-                       std::clamp(static_cast<double>(outputValue), 0.0, 1.0));
+    setParamNormalized(kPGPreampOutputGainId, migratedOutput);
     setParamNormalized(kPGPreampAStageId, aStageValue >= 0.5f ? 1.0 : 0.0);
     setParamNormalized(kPGPreampIronId, ironValue >= 0.5f ? 1.0 : 0.0);
     return kResultOk;
