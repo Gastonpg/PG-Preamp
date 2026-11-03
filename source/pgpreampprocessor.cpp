@@ -113,8 +113,8 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
     ironParameters.coreAreaSquareMeters = 1.0e-4;
     ironParameters.magneticPathLengthMeters = 0.08;
     ironParameters.relativePermeability = 4000.0;
-    ironParameters.coerciveFieldAmpsPerMeter = 0.05;
-    ironParameters.magneticRelaxationSeconds = 0.01;
+    ironParameters.coerciveFieldAmpsPerMeter = 0.001;
+    ironParameters.magneticRelaxationSeconds = 50.0e-6;
     ironParameters.primaryTurns = 1200.0;
     ironParameters.secondaryTurns = 1200.0;
     ironParameters.sourceResistanceOhms = 600.0;
