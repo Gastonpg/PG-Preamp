@@ -4,10 +4,19 @@
 #include "base/source/fstreamer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
 namespace Steinberg {
+
+namespace {
+constexpr double kAStageReferenceGain = 4.1316;
+constexpr double kIronReferenceGain = 1.25;
+constexpr double kInputVoltsPerFullScale = 0.005;
+constexpr double kOutputFullScalePerVolt = 40.0;
+constexpr double kSwitchSmoothingSeconds = 0.005;
+}
 
 PGPreampProcessor::PGPreampProcessor()
 {
@@ -51,6 +60,12 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
     outputGainNormalized_ = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
     aStageEnabled_ = aStageValue >= 0.5f;
     ironEnabled_ = ironValue >= 0.5f;
+
+    // State restoration happens outside the sample loop; initialize the mixes
+    // to their restored targets without an audible transition.
+    aStageMix_ = aStageEnabled_ ? 1.0 : 0.0;
+    ironMix_ = ironEnabled_ ? 1.0 : 0.0;
+    bypassMix_ = bypass_ ? 1.0 : 0.0;
     return kResultOk;
 }
 
@@ -75,6 +90,12 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
     const tresult result = AudioEffect::setupProcessing(setup);
     if (result != kResultOk)
         return result;
+
+    mixSmoothingCoefficient_ = 1.0 -
+        std::exp(-1.0 / (setup.sampleRate * kSwitchSmoothingSeconds));
+    aStageMix_ = aStageEnabled_ ? 1.0 : 0.0;
+    ironMix_ = ironEnabled_ ? 1.0 : 0.0;
+    bypassMix_ = bypass_ ? 1.0 : 0.0;
 
     PGAudio::Circuit::EbersMollNpn transistor;
     transistor.prepare(1.0e-14, 120.0, 2.0, 300.15);
@@ -104,25 +125,34 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
         }
     }
 
-    // Input-transformer prototype: 600-ohm source, 15-kohm secondary load,
-    // explicit winding resistance/leakage, and a smooth hysteretic core.
-    // Values are provisional engineering defaults pending a selected
-    // transformer's datasheet and impedance/B-H measurements.
+    // Iron is anchored to the published 10468 microphone-input transformer
+    // reference data and the Carnhill VTB9045 replacement configuration:
+    // 1:2 turns ratio, 300-ohm primary / 1.2-kohm secondary, with parallel
+    // primary and secondary coils. Their published coil DCR is 24+24 ohms
+    // primary and 130+130 ohms secondary, which becomes 12 / 65 ohms in
+    // parallel. The absolute turns and core geometry below are effective
+    // macro-model parameters because the original Marinair internals are not
+    // publicly specified. They remain provisional pending measurements.
     PGAudio::Circuit::FixedMagneticTransformerStage::Parameters ironParameters;
     ironParameters.saturationFluxDensityTesla = 0.8;
     ironParameters.coreAreaSquareMeters = 1.0e-4;
     ironParameters.magneticPathLengthMeters = 0.08;
-    ironParameters.relativePermeability = 4000.0;
-    ironParameters.coerciveFieldAmpsPerMeter = 0.001;
-    ironParameters.magneticRelaxationSeconds = 50.0e-6;
-    ironParameters.primaryTurns = 1200.0;
-    ironParameters.secondaryTurns = 1200.0;
-    ironParameters.sourceResistanceOhms = 600.0;
-    ironParameters.primaryWindingResistanceOhms = 80.0;
-    ironParameters.secondaryWindingResistanceOhms = 60.0;
-    ironParameters.primaryLeakageInductanceHenries = 1.0e-3;
-    ironParameters.secondaryLeakageInductanceHenries = 1.0e-3;
-    ironParameters.loadResistanceOhms = 15000.0;
+    ironParameters.relativePermeability = 16000.0;
+    ironParameters.coerciveFieldAmpsPerMeter = 1.0e-6;
+    ironParameters.magneticRelaxationSeconds = 1.0e-6;
+    ironParameters.branchMemoryRelaxationSeconds = 1.0e-3;
+    ironParameters.branchTransitionFieldAmpsPerMeter = 1.0e-5;
+    ironParameters.primaryTurns = 1000.0;
+    ironParameters.secondaryTurns = 2000.0;
+    ironParameters.sourceResistanceOhms = 150.0;
+    ironParameters.primaryWindingResistanceOhms = 12.0;
+    ironParameters.secondaryWindingResistanceOhms = 65.0;
+    // Small effective leakage values maintain the published wide-band
+    // response target; leakage remains a provisional parameter, not a
+    // claimed measurement of the original 10468.
+    ironParameters.primaryLeakageInductanceHenries = 1.0e-5;
+    ironParameters.secondaryLeakageInductanceHenries = 1.0e-5;
+    ironParameters.loadResistanceOhms = 1200.0;
 
     transformersReady_ = true;
     for (auto& transformer : transformers_)
@@ -147,6 +177,34 @@ double PGPreampProcessor::decibelsToLinear(double decibels) noexcept
     return std::pow(10.0, decibels / 20.0);
 }
 
+void PGPreampProcessor::applyParameter(Vst::ParamID id, Vst::ParamValue value) noexcept
+{
+    if (!std::isfinite(value))
+        return;
+    value = std::clamp(value, 0.0, 1.0);
+
+    switch (id)
+    {
+        case kPGPreampBypassId:
+            bypass_ = value >= 0.5;
+            break;
+        case kPGPreampInputGainId:
+            inputGainNormalized_ = value;
+            break;
+        case kPGPreampOutputGainId:
+            outputGainNormalized_ = value;
+            break;
+        case kPGPreampAStageId:
+            aStageEnabled_ = value >= 0.5;
+            break;
+        case kPGPreampIronId:
+            ironEnabled_ = value >= 0.5;
+            break;
+        default:
+            break;
+    }
+}
+
 void PGPreampProcessor::updateParameters(Vst::ProcessData& data) noexcept
 {
     if (data.inputParameterChanges == nullptr)
@@ -165,42 +223,18 @@ void PGPreampProcessor::updateParameters(Vst::ProcessData& data) noexcept
 
         int32 sampleOffset = 0;
         Vst::ParamValue value = 0.0;
-        if (queue->getPoint(pointCount - 1, sampleOffset, value) != kResultOk ||
-            !std::isfinite(value))
-            continue;
-
-        value = std::clamp(value, 0.0, 1.0);
-        switch (queue->getParameterId())
-        {
-            case kPGPreampBypassId:
-                bypass_ = value >= 0.5;
-                break;
-            case kPGPreampInputGainId:
-                inputGainNormalized_ = value;
-                break;
-            case kPGPreampOutputGainId:
-                outputGainNormalized_ = value;
-                break;
-            case kPGPreampAStageId:
-                aStageEnabled_ = value >= 0.5;
-                break;
-            case kPGPreampIronId:
-                ironEnabled_ = value >= 0.5;
-                break;
-            default:
-                break;
-        }
+        if (queue->getPoint(pointCount - 1, sampleOffset, value) == kResultOk)
+            applyParameter(queue->getParameterId(), value);
     }
 }
 
 tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
 {
-    // Hosts may flush automation/state without audio buffers. Consume parameter
-    // queues before validating audio buses so controls stay in sync.
-    updateParameters(data);
-
     if (data.numInputs < 1 || data.numOutputs < 1 || data.numSamples <= 0)
+    {
+        updateParameters(data);
         return kResultOk;
+    }
 
     auto& input = data.inputs[0];
     auto& output = data.outputs[0];
@@ -208,59 +242,175 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
     if (data.symbolicSampleSize != Vst::kSample32 ||
         input.channelBuffers32 == nullptr ||
         output.channelBuffers32 == nullptr)
-        return kResultOk;
-
-    const int32 channels = std::min(input.numChannels, output.numChannels);
-    if (bypass_)
     {
-        for (int32 channel = 0; channel < channels; ++channel)
-        {
-            const float* source = input.channelBuffers32[channel];
-            float* destination = output.channelBuffers32[channel];
-            if (source != nullptr && destination != nullptr && source != destination)
-                std::copy_n(source, data.numSamples, destination);
-        }
-        output.silenceFlags = input.silenceFlags;
+        updateParameters(data);
         return kResultOk;
     }
 
-    const double inputDb = -12.0 + 30.0 * inputGainNormalized_;
-    const double outputDb = -12.0 + 24.0 * outputGainNormalized_;
-    const float inputVoltsPerFullScale =
-        static_cast<float>(0.005 * decibelsToLinear(inputDb));
-    const float outputFullScalePerVolt =
-        static_cast<float>(40.0 * decibelsToLinear(outputDb));
-
-    for (int32 channel = 0; channel < channels && channel < 2; ++channel)
+    const int32 channels = std::min(input.numChannels, output.numChannels);
+    if (channels <= 0)
     {
-        const float* source = input.channelBuffers32[channel];
-        float* destination = output.channelBuffers32[channel];
-        if (source == nullptr || destination == nullptr)
-            continue;
+        updateParameters(data);
+        return kResultOk;
+    }
 
-        auto& stage = stages_[static_cast<std::size_t>(channel)];
-        auto& transformer = transformers_[static_cast<std::size_t>(channel)];
+    // Keep parameter event handling allocation-free and sample-offset accurate.
+    // The plug-in exposes five parameters, so five fixed cursors are enough.
+    using QueuePointer = decltype(data.inputParameterChanges->getParameterData(0));
+    struct ParameterCursor
+    {
+        QueuePointer queue = nullptr;
+        Vst::ParamID id = 0;
+        int32 pointCount = 0;
+        int32 nextPoint = 0;
+        int32 nextOffset = 0;
+        Vst::ParamValue nextValue = 0.0;
+        bool hasPoint = false;
+    };
+    std::array<ParameterCursor, 5> cursors{};
+    std::size_t cursorCount = 0;
 
-        for (int32 sample = 0; sample < data.numSamples; ++sample)
+    if (data.inputParameterChanges != nullptr)
+    {
+        const int32 queueCount = data.inputParameterChanges->getParameterCount();
+        for (int32 queueIndex = 0;
+             queueIndex < queueCount && cursorCount < cursors.size();
+             ++queueIndex)
         {
-            float circuitVolts = source[sample] * inputVoltsPerFullScale;
+            auto* queue = data.inputParameterChanges->getParameterData(queueIndex);
+            if (queue == nullptr)
+                continue;
 
-            // The Iron block is the input coupling transformer. Its loaded
-            // two-winding model runs before the transistor stage.
-            if (ironEnabled_ && transformersReady_)
+            const Vst::ParamID id = queue->getParameterId();
+            if (id != kPGPreampBypassId &&
+                id != kPGPreampInputGainId &&
+                id != kPGPreampOutputGainId &&
+                id != kPGPreampAStageId &&
+                id != kPGPreampIronId)
+                continue;
+
+            ParameterCursor& cursor = cursors[cursorCount++];
+            cursor.queue = queue;
+            cursor.id = id;
+            cursor.pointCount = queue->getPointCount();
+            cursor.nextPoint = 0;
+            cursor.hasPoint = false;
+
+            while (cursor.nextPoint < cursor.pointCount)
+            {
+                if (queue->getPoint(cursor.nextPoint,
+                                    cursor.nextOffset,
+                                    cursor.nextValue) == kResultOk &&
+                    std::isfinite(cursor.nextValue))
+                {
+                    cursor.hasPoint = true;
+                    break;
+                }
+                ++cursor.nextPoint;
+            }
+        }
+    }
+
+    double inputGainLinear =
+        decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
+    double outputGainLinear =
+        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
+
+    for (int32 sample = 0; sample < data.numSamples; ++sample)
+    {
+        // Apply all parameter points scheduled at this sample offset.
+        for (std::size_t cursorIndex = 0; cursorIndex < cursorCount; ++cursorIndex)
+        {
+            ParameterCursor& cursor = cursors[cursorIndex];
+            while (cursor.hasPoint && cursor.nextOffset <= sample)
+            {
+                applyParameter(cursor.id, cursor.nextValue);
+                if (cursor.id == kPGPreampInputGainId)
+                    inputGainLinear =
+                        decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
+                else if (cursor.id == kPGPreampOutputGainId)
+                    outputGainLinear =
+                        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
+
+                ++cursor.nextPoint;
+                cursor.hasPoint = false;
+                while (cursor.nextPoint < cursor.pointCount)
+                {
+                    if (cursor.queue->getPoint(cursor.nextPoint,
+                                                cursor.nextOffset,
+                                                cursor.nextValue) == kResultOk &&
+                        std::isfinite(cursor.nextValue))
+                    {
+                        cursor.hasPoint = true;
+                        break;
+                    }
+                    ++cursor.nextPoint;
+                }
+            }
+        }
+
+        const double targetIronMix = ironEnabled_ && transformersReady_ ? 1.0 : 0.0;
+        const double targetAStageMix = aStageEnabled_ && stagesReady_ ? 1.0 : 0.0;
+        const double targetBypassMix = bypass_ ? 1.0 : 0.0;
+        ironMix_ += mixSmoothingCoefficient_ * (targetIronMix - ironMix_);
+        aStageMix_ += mixSmoothingCoefficient_ * (targetAStageMix - aStageMix_);
+        bypassMix_ += mixSmoothingCoefficient_ * (targetBypassMix - bypassMix_);
+
+        for (int32 channel = 0; channel < channels && channel < 2; ++channel)
+        {
+            const float* source = input.channelBuffers32[channel];
+            float* destination = output.channelBuffers32[channel];
+            if (source == nullptr || destination == nullptr)
+                continue;
+
+            auto& stage = stages_[static_cast<std::size_t>(channel)];
+            auto& transformer = transformers_[static_cast<std::size_t>(channel)];
+            const float sourceSample = source[sample];
+
+            // The 10468-style transformer sits before the preamp gain control.
+            // It runs continuously so engaging Iron cannot start from a cold
+            // magnetic state. The off path is level-matched to the measured
+            // small-signal transformer ratio.
+            const float transformerInput =
+                sourceSample * static_cast<float>(kInputVoltsPerFullScale);
+            float transformerWet = transformerInput;
+            if (transformersReady_)
             {
                 PGAudio::Circuit::FixedMagneticTransformerStage::ProcessResult
                     transformerResult;
-                if (transformer.processSample(circuitVolts, transformerResult))
-                    circuitVolts = transformerResult.outputVolts;
+                if (transformer.processSample(transformerInput, transformerResult))
+                    transformerWet = static_cast<float>(
+                        transformerResult.outputVolts / kIronReferenceGain);
             }
+            const float ironOutput = transformerInput +
+                (transformerWet - transformerInput) * static_cast<float>(ironMix_);
 
-            if (aStageEnabled_ && stagesReady_)
-                circuitVolts = stage.processSample(circuitVolts);
+            // Input gain follows the input transformer, matching the basic
+            // 1073 gain-staging order more closely than driving the transformer
+            // with the gain knob itself.
+            const float stageInput = ironOutput * static_cast<float>(inputGainLinear);
 
-            const float outputSample = circuitVolts * outputFullScalePerVolt;
-            destination[sample] = std::isfinite(outputSample)
-                ? outputSample : source[sample];
+            // Keep A Stage warm while bypassed. Its dry path uses the measured
+            // small-signal gain as makeup so toggling the colour block does not
+            // cause the 12.3 dB level drop observed in the first audition.
+            float stageWet = stageInput;
+            if (stagesReady_)
+            {
+                PGAudio::Circuit::FixedCommonEmitterStage::ProcessResult stageResult;
+                if (stage.processSample(stageInput, stageResult))
+                    stageWet = stageResult.output;
+            }
+            const float stageDry = stageInput *
+                static_cast<float>(stagesReady_ ? kAStageReferenceGain : 1.0);
+            const float stageOutput = stageDry +
+                (stageWet - stageDry) * static_cast<float>(aStageMix_);
+
+            const float processedSample = stageOutput *
+                static_cast<float>(kOutputFullScalePerVolt * outputGainLinear);
+            const float finalSample = processedSample +
+                (sourceSample - processedSample) * static_cast<float>(bypassMix_);
+            destination[sample] = std::isfinite(finalSample)
+                ? finalSample : sourceSample;
         }
     }
 
