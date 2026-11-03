@@ -39,6 +39,15 @@ struct BjtAdvancedParameters
     double baseCollectorGradingCoefficient = 0.33;
     double forwardTransitTimeSeconds = 0.0;
     double reverseTransitTimeSeconds = 0.0;
+
+    // Optional Gummel-Poon-style base-current terms. Zero leakage and infinite
+    // roll-off knees preserve the previous Ebers-Moll behavior by default.
+    double baseEmitterLeakageSaturationCurrentAmps = 0.0;
+    double baseCollectorLeakageSaturationCurrentAmps = 0.0;
+    double baseEmitterLeakageEmissionCoefficient = 1.5;
+    double baseCollectorLeakageEmissionCoefficient = 2.0;
+    double forwardBetaRollOffCurrentAmps = std::numeric_limits<double>::infinity();
+    double reverseBetaRollOffCurrentAmps = std::numeric_limits<double>::infinity();
 };
 
 // Charge-controlled Ebers-Moll / Gummel-Poon-style NPN primitive.
@@ -117,6 +126,18 @@ public:
                 ? std::clamp(parameters.baseCollectorGradingCoefficient, 0.0, 0.95) : 0.33;
         advanced_.forwardTransitTimeSeconds = nonNegative(parameters.forwardTransitTimeSeconds);
         advanced_.reverseTransitTimeSeconds = nonNegative(parameters.reverseTransitTimeSeconds);
+        advanced_.baseEmitterLeakageSaturationCurrentAmps =
+            nonNegative(parameters.baseEmitterLeakageSaturationCurrentAmps);
+        advanced_.baseCollectorLeakageSaturationCurrentAmps =
+            nonNegative(parameters.baseCollectorLeakageSaturationCurrentAmps);
+        advanced_.baseEmitterLeakageEmissionCoefficient =
+            positiveOr(parameters.baseEmitterLeakageEmissionCoefficient, 1.5);
+        advanced_.baseCollectorLeakageEmissionCoefficient =
+            positiveOr(parameters.baseCollectorLeakageEmissionCoefficient, 2.0);
+        advanced_.forwardBetaRollOffCurrentAmps =
+            positiveOrInfinity(parameters.forwardBetaRollOffCurrentAmps);
+        advanced_.reverseBetaRollOffCurrentAmps =
+            positiveOrInfinity(parameters.reverseBetaRollOffCurrentAmps);
     }
 
     const BjtAdvancedParameters& advancedParameters() const noexcept { return advanced_; }
@@ -151,9 +172,52 @@ public:
         const double reverseDerivative = vbcNormalized == vbcClamped
             ? saturationCurrentAmps_ * std::exp(vbcClamped) / thermalVoltage_ : 0.0;
 
+        const double forwardLeakageNormalized =
+            vbeNormalized / advanced_.baseEmitterLeakageEmissionCoefficient;
+        const double reverseLeakageNormalized =
+            vbcNormalized / advanced_.baseCollectorLeakageEmissionCoefficient;
+        const double forwardLeakageClamped =
+            std::clamp(forwardLeakageNormalized, -80.0, 40.0);
+        const double reverseLeakageClamped =
+            std::clamp(reverseLeakageNormalized, -80.0, 40.0);
+        const double forwardLeakage =
+            advanced_.baseEmitterLeakageSaturationCurrentAmps *
+            std::expm1(forwardLeakageClamped);
+        const double reverseLeakage =
+            advanced_.baseCollectorLeakageSaturationCurrentAmps *
+            std::expm1(reverseLeakageClamped);
+        const double forwardLeakageDerivative =
+            forwardLeakageNormalized == forwardLeakageClamped
+                ? advanced_.baseEmitterLeakageSaturationCurrentAmps *
+                    std::exp(forwardLeakageClamped) /
+                    (advanced_.baseEmitterLeakageEmissionCoefficient * thermalVoltage_)
+                : 0.0;
+        const double reverseLeakageDerivative =
+            reverseLeakageNormalized == reverseLeakageClamped
+                ? advanced_.baseCollectorLeakageSaturationCurrentAmps *
+                    std::exp(reverseLeakageClamped) /
+                    (advanced_.baseCollectorLeakageEmissionCoefficient * thermalVoltage_)
+                : 0.0;
+
         const double transport = forwardJunction - reverseJunction / alphaReverse_;
-        const double base = forwardJunction * (1.0 / alphaForward_ - 1.0) +
-                            reverseJunction * (1.0 / alphaReverse_ - 1.0);
+        const double ibForward = 1.0 / alphaForward_ - 1.0;
+        const double ibReverse = 1.0 / alphaReverse_ - 1.0;
+        const double forwardRollOff = std::isfinite(
+            advanced_.forwardBetaRollOffCurrentAmps) &&
+            advanced_.forwardBetaRollOffCurrentAmps > 0.0 &&
+            forwardJunction > 0.0
+                ? 1.0 + forwardJunction / advanced_.forwardBetaRollOffCurrentAmps
+                : 1.0;
+        const double reverseRollOff = std::isfinite(
+            advanced_.reverseBetaRollOffCurrentAmps) &&
+            advanced_.reverseBetaRollOffCurrentAmps > 0.0 &&
+            reverseJunction > 0.0
+                ? 1.0 + reverseJunction / advanced_.reverseBetaRollOffCurrentAmps
+                : 1.0;
+        const double base =
+            forwardJunction * ibForward * forwardRollOff +
+            reverseJunction * ibReverse * reverseRollOff +
+            forwardLeakage + reverseLeakage;
 
         double earlyFactor = 1.0;
         double earlySlope = 0.0;
@@ -177,8 +241,24 @@ public:
         const double emitter = -collector - base;
         result.currents = {collector, base, emitter};
 
-        const double ibForward = 1.0 / alphaForward_ - 1.0;
-        const double ibReverse = 1.0 / alphaReverse_ - 1.0;
+        const double forwardBaseSlope = ibForward *
+            (std::isfinite(advanced_.forwardBetaRollOffCurrentAmps) &&
+             advanced_.forwardBetaRollOffCurrentAmps > 0.0 &&
+             forwardJunction > 0.0
+                ? 1.0 + 2.0 * forwardJunction /
+                    advanced_.forwardBetaRollOffCurrentAmps
+                : 1.0);
+        const double reverseBaseSlope = ibReverse *
+            (std::isfinite(advanced_.reverseBetaRollOffCurrentAmps) &&
+             advanced_.reverseBetaRollOffCurrentAmps > 0.0 &&
+             reverseJunction > 0.0
+                ? 1.0 + 2.0 * reverseJunction /
+                    advanced_.reverseBetaRollOffCurrentAmps
+                : 1.0);
+        const double baseDerivativeBe =
+            forwardDerivative * forwardBaseSlope + forwardLeakageDerivative;
+        const double baseDerivativeBc =
+            reverseDerivative * reverseBaseSlope + reverseLeakageDerivative;
         const double dTransport[3] = {
             forwardDerivative - reverseDerivative / alphaReverse_,
             reverseDerivative / alphaReverse_,
@@ -186,10 +266,9 @@ public:
         };
 
         // Rows/columns are ordered base, collector, emitter.
-        result.conductance[0][0] = forwardDerivative * ibForward +
-                                   reverseDerivative * ibReverse;
-        result.conductance[0][1] = -reverseDerivative * ibReverse;
-        result.conductance[0][2] = -forwardDerivative * ibForward;
+        result.conductance[0][0] = baseDerivativeBe + baseDerivativeBc;
+        result.conductance[0][1] = -baseDerivativeBc;
+        result.conductance[0][2] = -baseDerivativeBe;
 
         for (int column = 0; column < 3; ++column)
         {
