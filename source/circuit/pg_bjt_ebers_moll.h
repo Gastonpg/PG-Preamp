@@ -110,9 +110,11 @@ public:
         advanced_.baseEmitterPotentialVolts = positiveOr(parameters.baseEmitterPotentialVolts, 0.75);
         advanced_.baseCollectorPotentialVolts = positiveOr(parameters.baseCollectorPotentialVolts, 0.75);
         advanced_.baseEmitterGradingCoefficient =
-            std::clamp(parameters.baseEmitterGradingCoefficient, 0.0, 0.95);
+            std::isfinite(parameters.baseEmitterGradingCoefficient)
+                ? std::clamp(parameters.baseEmitterGradingCoefficient, 0.0, 0.95) : 0.33;
         advanced_.baseCollectorGradingCoefficient =
-            std::clamp(parameters.baseCollectorGradingCoefficient, 0.0, 0.95);
+            std::isfinite(parameters.baseCollectorGradingCoefficient)
+                ? std::clamp(parameters.baseCollectorGradingCoefficient, 0.0, 0.95) : 0.33;
         advanced_.forwardTransitTimeSeconds = nonNegative(parameters.forwardTransitTimeSeconds);
         advanced_.reverseTransitTimeSeconds = nonNegative(parameters.reverseTransitTimeSeconds);
     }
