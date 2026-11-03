@@ -8,6 +8,30 @@ A component is not accepted merely because it sounds pleasing. Its behavior must
 
 ## Validated foundations in this branch
 
+### Resistor (R)
+
+The resistor is an algebraic component: it has no stored state. Its current and voltage follow Ohm's law, with power dissipation calculated as V*I. Optional first- and second-order temperature coefficients model resistance drift around a nominal temperature:
+
+R(T) = R0 * [1 + TC1*(T-T0) + TC2*(T-T0)^2]
+
+The Johnson-Nyquist noise density is:
+
+en = sqrt(4 * kB * T * R(T)) V/sqrt(Hz)
+
+For one-sided bandwidth B, integrated RMS noise is:
+
+vn,rms = en * sqrt(B)
+
+An optional deterministic Gaussian-approximation source exists for tests, but is not automatically inserted into plugin audio. Temperature-coefficient equations follow the ngspice device-model documentation.
+
+### Capacitor (C)
+
+The current-driven capacitor stores dielectric voltage and includes series equivalent resistance (ESR) plus parallel leakage resistance. With current held constant during one sample, leakage recovery uses the exact exponential solution. Stored charge, ESR drop and leakage time constant remain explicit. Dielectric absorption is deferred until it can be represented as independently tested relaxation branches.
+
+### Inductor (L)
+
+The current state follows the exact first-order response of an ideal inductance in series with winding resistance for a voltage held constant over each sample. Winding resistance is explicit. Core saturation, hysteresis and frequency-dependent core loss are not hidden inside this linear component.
+
 ### Passive RC stage
 
 A series resistor feeding a shunt capacitor, with capacitor voltage as output. For the ideal network:
@@ -17,40 +41,26 @@ A series resistor feeding a shunt capacitor, with capacitor voltage as output. F
 - alpha = 1 - exp(-1/(fs*R*C))
 - y[n] = y[n-1] + alpha*(x[n]-y[n-1])
 
-The exact zero-order-hold coefficient is used. Tests check time constant, cutoff, step response, stability at common sample rates and measured -3 dB response.
-
-### Capacitor with ESR and leakage
-
-A current-driven capacitor stores dielectric voltage and includes series equivalent resistance (ESR) plus parallel leakage resistance. With current held constant during one sample, leakage recovery uses the exact exponential solution. Stored charge, ESR drop and leakage time constant remain explicit. Dielectric absorption is deferred until it can be represented as independently tested relaxation branches.
-
-### Resistor and Johnson-Nyquist noise
-
-The model exposes thermal-noise density:
-
-en = sqrt(4 * kB * T * R) V/sqrt(Hz)
-
-For one-sided bandwidth B, integrated RMS noise is:
-
-vn,rms = en * sqrt(B)
-
-An optional deterministic noise source produces a low-cost Gaussian approximation for component experiments. It is not automatically inserted into the plugin signal path. Noise must be assigned to a physical component and bandwidth to avoid arbitrary or double-counted hiss.
-
-### Inductor with winding resistance
-
-The current state follows the exact first-order response of an ideal inductance in series with winding resistance for a voltage held constant over each sample. Winding resistance is explicit. Core saturation, hysteresis and frequency-dependent core loss are not hidden inside this linear component.
+Tests check time constant, cutoff, step response, stability at common sample rates and measured -3 dB response.
 
 ### Static NPN transistor (Ebers-Moll)
 
-The first transistor primitive calculates collector, base and emitter currents from base-emitter and base-collector junction voltages, using saturation current, forward/reverse beta and absolute temperature. Terminal-current sign conventions are explicit and KCL is checked by tests.
+The first transistor primitive calculates collector, base and emitter currents from base-emitter and base-collector junction voltages, using saturation current, forward/reverse beta and absolute temperature. It includes SPICE-style temperature scaling for saturation current (band-gap energy and XTI) and beta (XTB). Terminal-current sign conventions are explicit and KCL is checked by tests.
 
-This is a static junction model only. It includes SPICE-style temperature scaling for saturation current (band-gap energy and XTI) and beta (XTB), but does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not connected to the audio path and is not claimed to reproduce a particular BC184C or 2N3055 device. Temperature equations follow the ngspice BJT model documentation: https://ngspice.sourceforge.io/docs/ngspice-44-manual.pdf
+This is a static junction model only. It does not yet include Early effect, ohmic parasitics, junction capacitances, diffusion charge or transit-time behavior. It is not connected to the audio path and is not claimed to reproduce a particular transistor device. Temperature equations follow the [ngspice BJT model documentation](https://ngspice.sourceforge.io/docs/ngspice-44-manual.pdf).
 
-## Next candidates
+## Integration path
 
-1. Add dielectric-absorption behavior as independently testable relaxation branches.
-2. Extend the transistor model with validated parasitic resistance, Early effect and charge storage.
-3. Add magnetic core loss, saturation and hysteresis only with documented assumptions and tests.
-4. Build passive RLC networks and a complete amplifier stage from validated components.
-5. Develop a transformer model from winding/core data, rather than using a generic saturation curve.
+These are verified component primitives, not yet a complete amplifier. The next circuit-level milestone is a small modified-nodal-analysis (MNA) test solver that connects actual resistors, capacitors, inductors and a nonlinear transistor at once. It will be validated against hand-calculated bias points and transient responses before any solver is considered for real-time plugin use.
+
+The MNA approach and Newton-Raphson solution of nonlinear circuit equations are standard circuit-simulation methods; see the [ngspice manual](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf).
+
+## Remaining model extensions
+
+1. Capacitor dielectric absorption and voltage-dependent capacitance where justified.
+2. Inductor core loss, saturation and hysteresis.
+3. Transistor Early effect, ohmic parasitics, junction capacitances and stored charge.
+4. Coupled transformer windings with leakage/magnetizing inductances, winding resistance and core behavior.
+5. A validated active gain-stage topology built from those elements.
 
 The engine remains independent of the VST3 wrapper so it can later be reused by PG Optical Compressor.
