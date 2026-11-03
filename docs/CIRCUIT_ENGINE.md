@@ -79,6 +79,20 @@ At prepare/reset time it solves the DC operating point and initializes the coupl
 
 At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.14469x small-signal voltage gain. The processor uses this exact measured value as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. The fixed common-emitter stage is inverting; its level-matched dry reference uses the same polarity so the 5 ms crossfade does not pass through a polarity cancellation. A regression test checks that the actual plugin transistor stage has negative input/output correlation. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
 
+### PG A Stage M1 profile and Class-A operating checks
+
+`PgAStageProfileV1` centralizes the transistor and fixed common-emitter network used by the VST3 processor. The profile preserves the currently auditioned sound; it does not silently replace the generic transistor with a different device model. Its present BJT constants (IS, beta, Early voltages, series resistances, junction capacitances and transit times) are explicitly provisional.
+
+The fixed stage now reports its solved quiescent point and the instantaneous terminal currents. Automated regressions check:
+- positive collector current and negative emitter current at rest;
+- collector/base/emitter current conservation;
+- a forward-active quiescent point with more than 1 V collector-emitter headroom;
+- uninterrupted collector conduction and positive active-region voltage over a complete 1 kHz cycle at 40 mV peak input, representing the nominal +18 dB Input/full-scale host envelope at the circuit boundary.
+
+These are bounded engineering checks for the current topology and temperature, not a universal guarantee under arbitrary overload, frequency, temperature or component spread. The word *Class A* describes the conduction mode under the specified test envelope, not a claim of a fully calibrated commercial hardware clone.
+
+A possible future device reference is the onsemi BC550C low-noise NPN. Its datasheet specifies a C gain grade of 420–800 at 2 mA / 5 V, a typical 1.2 dB noise figure at 200 µA / 5 V / 1 kHz with 2 kΩ source resistance, a typical 300 MHz transition frequency at 10 mA, and typical input/output capacitance data. Those are sparse datasheet points, not a complete Gummel-Poon parameter set; therefore the current profile does not claim to be a BC550C model. Device fitting still needs a manufacturer SPICE card or measured transistor curves and should be validated at the actual stage bias current.
+
 ### Fixed loaded Iron transformer
 
 `FixedMagneticTransformerStage` is the real-time reduced-order transformer used by the Iron switch. It models a source resistance, primary winding resistance and leakage inductance, a magnetizing field from Ampere's law, a secondary winding with resistance/leakage, and a finite load.
