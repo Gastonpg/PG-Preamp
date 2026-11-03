@@ -41,5 +41,6 @@ We will define our own signal path before implementing gain or coloration:
 - Ideal passive RC network with exact discrete-time coefficient.
 - Resistor thermal-noise density and bandwidth-integrated RMS noise, plus an optional seeded test source.
 - Current-driven capacitor with ESR and leakage resistance.
+- Linear inductor with series winding resistance.
 
-These are component-level foundations only; they are not yet wired into the Preamp audio path. Dielectric absorption remains a separately testable extension.
+These are component-level foundations only; they are not yet wired into the Preamp audio path. Capacitor dielectric absorption and nonlinear magnetic effects remain separately testable extensions.

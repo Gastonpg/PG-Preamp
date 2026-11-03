@@ -35,12 +35,16 @@ For one-sided bandwidth \`B\`, integrated RMS noise is:
 
 An optional deterministic noise source produces a low-cost Gaussian approximation for component experiments. It is not automatically inserted into the plugin signal path. Noise must be assigned to a physical component and bandwidth to avoid arbitrary or double-counted hiss.
 
+### Inductor with winding resistance
+
+The current state follows the exact first-order response of an ideal inductance in series with winding resistance for a voltage held constant over each sample. The winding resistance is explicit. Core saturation, hysteresis and frequency-dependent core loss are intentionally not hidden inside this linear component.
+
 ## Next candidates
 
 1. Add dielectric-absorption behavior as independently testable relaxation branches.
-2. Add inductors with winding resistance and core-loss assumptions.
-3. Build passive networks from validated R/C/L components.
-4. Develop transformer models only with documented winding/core parameters and nonlinear assumptions.
-5. Define and test the active gain-stage topology before real-time integration.
+2. Add magnetic core loss, saturation and hysteresis only with documented assumptions and tests.
+3. Build passive RLC networks from validated components.
+4. Develop a transformer model from winding/core data, rather than using a generic saturation curve.
+5. Define and test the active transistor gain-stage topology before real-time integration.
 
 The engine remains independent of the VST3 wrapper so it can later be reused by PG Optical Compressor.

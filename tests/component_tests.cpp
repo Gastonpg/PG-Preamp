@@ -1,6 +1,7 @@
 #include "circuit/pg_rc_stage.h"
 #include "circuit/pg_resistor.h"
 #include "circuit/pg_capacitor.h"
+#include "circuit/pg_inductor.h"
 
 #include <cmath>
 #include <iostream>
@@ -18,14 +19,13 @@ int main()
     using PGAudio::Circuit::Resistor;
     using PGAudio::Circuit::ResistorThermalNoise;
     using PGAudio::Circuit::Capacitor;
+    using PGAudio::Circuit::Inductor;
 
-    // A 10 kOhm / 10 nF network has tau = 100 us and fc ~= 1591.55 Hz.
     RcStage rc;
     rc.prepare(48000.0, 10000.0, 10.0e-9);
     if (!near(rc.timeConstantSeconds(), 100.0e-6, 1.0e-12)) return 1;
     if (!near(rc.cutoffHz(), 1591.549, 0.01)) return 2;
 
-    // Step response should approach the applied voltage monotonically.
     double previous = 0.0;
     for (int i = 0; i < 48000; ++i)
     {
@@ -35,7 +35,7 @@ int main()
     }
     if (!near(rc.voltage(), 1.0, 1.0e-9)) return 4;
 
-    // Check the -3 dB point with a coherent 1.6 kHz sine at 48 kHz.
+    // Verify the -3 dB response at a coherent 1.6 kHz sine / 48 kHz sample rate.
     constexpr int samplesPerCycle = 30;
     constexpr int settleCycles = 40;
     constexpr int measureCycles = 200;
@@ -57,9 +57,7 @@ int main()
             outputSquares += output * output;
         }
     }
-    const double measuredGain = std::sqrt(outputSquares / inputSquares);
-    if (!near(measuredGain, 0.70710678, 0.002)) return 5;
-
+    if (!near(std::sqrt(outputSquares / inputSquares), 0.70710678, 0.002)) return 5;
     rc.reset();
     if (!near(rc.voltage(), 0.0, 1.0e-15)) return 6;
 
@@ -74,7 +72,6 @@ int main()
         }
     }
 
-    // Johnson-Nyquist resistor noise density and bandwidth integration.
     Resistor resistor(10000.0);
     constexpr double boltzmann = 1.380649e-23;
     const double expectedDensity = std::sqrt(4.0 * boltzmann * 293.15 * 10000.0);
@@ -107,7 +104,6 @@ int main()
     if (std::abs(mean) > expectedNoiseRms * 0.015) return 13;
     if (std::abs(measuredNoiseRms - expectedNoiseRms) > expectedNoiseRms * 0.015) return 14;
 
-    // Current-driven capacitor with ESR and finite leakage resistance.
     Capacitor capacitor;
     constexpr double capValue = 10.0e-6;
     constexpr double leakValue = 10000.0;
@@ -119,7 +115,6 @@ int main()
     const double expectedCapVoltage = chargeCurrent * leakValue * (1.0 - std::exp(-5.0));
     if (!near(capacitor.dielectricVoltage(), expectedCapVoltage, 1.0e-4)) return 15;
     if (!near(capacitor.terminalVoltage(), expectedCapVoltage + chargeCurrent * 0.5, 1.0e-4)) return 16;
-
     capacitor.reset();
     if (!near(capacitor.dielectricVoltage(), 0.0, 1.0e-15)) return 17;
 
@@ -129,6 +124,23 @@ int main()
     if (!near(capacitor.dielectricVoltage(), 100.0, 0.02)) return 18;
     if (!near(capacitor.terminalVoltage(), 100.0005, 0.02)) return 19;
 
-    std::cout << "PG Circuit Engine: RC, resistor and capacitor tests passed.\n";
+    // Linear inductor with winding resistance: first-order RL current response.
+    Inductor inductor;
+    inductor.prepare(48000.0, 1.0, 10.0);
+    const double rlTau = 1.0 / 10.0;
+    for (int i = 0; i < static_cast<int>(5.0 * rlTau * 48000.0); ++i)
+        inductor.processVoltage(1.0f);
+    const double expectedCurrent = 0.1 * (1.0 - std::exp(-5.0));
+    if (!near(inductor.currentAmps(), expectedCurrent, 1.0e-5)) return 20;
+    if (!near(inductor.electricalTimeConstantSeconds(), rlTau, 1.0e-12)) return 21;
+
+    // Ideal inductance integrates voltage: di/dt = v/L.
+    inductor.prepare(48000.0, 1.0, 0.0);
+    inductor.reset();
+    for (int i = 0; i < 480; ++i)
+        inductor.processVoltage(1.0f);
+    if (!near(inductor.currentAmps(), 0.01, 1.0e-9)) return 22;
+
+    std::cout << "PG Circuit Engine: R, L, C and passive-network tests passed.\n";
     return 0;
 }
