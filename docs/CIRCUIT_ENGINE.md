@@ -77,7 +77,7 @@ It uses dynamically sized matrices and performs nonlinear iterations. It is a re
 
 At prepare/reset time it solves the DC operating point and initializes the coupling-capacitor voltages from that solution. This prevents a false output transient from an inconsistent initial bias. The topology is a test fixture and a first audible A Stage, not the final PG Preamp schematic.
 
-At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.1316x small-signal voltage gain. The processor uses this as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
+At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.14469x small-signal voltage gain. The processor uses this exact measured value as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
 
 ### Fixed loaded Iron transformer
 
@@ -131,7 +131,7 @@ The signal path is:
 1. Host audio is scaled to the circuit's internal microphone-level voltage range.
 2. **Iron**, when enabled, passes the signal through the loaded 10468-role input-transformer macro-model. The dry path is normalized against the measured small-signal macro-model gain so engaging Iron is not simply a volume increase.
 3. **Input Gain** is applied after the input transformer, following the basic 1073 gain-staging order more closely.
-4. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit. When disabled, its dry path uses the measured 4.1316x small-signal gain for level matching.
+4. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit. When disabled, its dry path uses the measured 4.14469x small-signal gain for level matching.
 5. **Output Gain** maps the circuit output back to the host audio range.
 
 The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled by default; Iron is disabled by default. All five control values are saved in the processor state. Older three-value states remain readable and default to A Stage enabled / Iron disabled.
