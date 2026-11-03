@@ -201,6 +201,78 @@ int main()
         }
     }
 
+    // Advanced transistor: Early effect, ohmic parasitics, depletion
+    // capacitances and transit-time diffusion charge.
+    EbersMollNpn detailedTransistor;
+    detailedTransistor.prepare(2.0e-14, 120.0, 2.0, 300.15);
+    BjtAdvancedParameters detailedParameters;
+    detailedParameters.forwardEarlyVoltage = 85.0;
+    detailedParameters.reverseEarlyVoltage = 45.0;
+    detailedParameters.baseResistanceOhms = 120.0;
+    detailedParameters.collectorResistanceOhms = 4.0;
+    detailedParameters.emitterResistanceOhms = 1.5;
+    detailedParameters.baseEmitterCapacitanceFarads = 22.0e-12;
+    detailedParameters.baseCollectorCapacitanceFarads = 7.0e-12;
+    detailedParameters.forwardTransitTimeSeconds = 0.35e-9;
+    detailedParameters.reverseTransitTimeSeconds = 2.0e-9;
+    detailedTransistor.setAdvancedParameters(detailedParameters);
+
+    const double detailedVoltages[3] = {0.67, 5.0, 0.0};
+    const auto detailedEvaluation = detailedTransistor.evaluateWithDerivatives(
+        detailedVoltages[0], detailedVoltages[1], detailedVoltages[2]);
+    if (!near(detailedEvaluation.currents.baseAmps +
+              detailedEvaluation.currents.collectorAmps +
+              detailedEvaluation.currents.emitterAmps, 0.0, 1.0e-14))
+        return 50;
+    if (!near(detailedEvaluation.terminalChargeCoulombs[0] +
+              detailedEvaluation.terminalChargeCoulombs[1] +
+              detailedEvaluation.terminalChargeCoulombs[2], 0.0, 1.0e-18))
+        return 51;
+
+    // Validate the analytic nonlinear conductance matrix and charge Jacobian
+    // against finite differences in all three terminal-voltage directions.
+    constexpr double detailedDerivativeStep = 1.0e-6;
+    for (int column = 0; column < 3; ++column)
+    {
+        double plusVoltage[3] = {
+            detailedVoltages[0], detailedVoltages[1], detailedVoltages[2]
+        };
+        plusVoltage[column] += detailedDerivativeStep;
+        const auto plus = detailedTransistor.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+        plusVoltage[column] -= 2.0 * detailedDerivativeStep;
+        const auto minus = detailedTransistor.evaluateWithDerivatives(
+            plusVoltage[0], plusVoltage[1], plusVoltage[2]);
+
+        const double plusCurrent[3] = {
+            plus.currents.baseAmps, plus.currents.collectorAmps, plus.currents.emitterAmps
+        };
+        const double minusCurrent[3] = {
+            minus.currents.baseAmps, minus.currents.collectorAmps, minus.currents.emitterAmps
+        };
+        for (int row = 0; row < 3; ++row)
+        {
+            const double numericalG = (plusCurrent[row] - minusCurrent[row]) /
+                                      (2.0 * detailedDerivativeStep);
+            if (!near(detailedEvaluation.conductance[row][column], numericalG,
+                      std::max(1.0e-10, std::abs(numericalG) * 1.0e-5)))
+                return 52;
+
+            const double numericalC =
+                (plus.terminalChargeCoulombs[row] - minus.terminalChargeCoulombs[row]) /
+                (2.0 * detailedDerivativeStep);
+            if (!near(detailedEvaluation.capacitance[row][column], numericalC,
+                      std::max(1.0e-15, std::abs(numericalC) * 1.0e-4)))
+                return 53;
+        }
+    }
+
+    // Early voltage must increase forward-active collector current with VCE.
+    const auto lowVce = detailedTransistor.evaluate(0.67, 2.0, 0.0);
+    const auto highVce = detailedTransistor.evaluate(0.67, 8.0, 0.0);
+    if (!(highVce.collectorAmps > lowVce.collectorAmps))
+        return 54;
+
     // RC transient solved as an assembled network (1 kOhm driving 1 uF).
     MnaCircuit rcNetwork;
     const auto rcInput = rcNetwork.createNode();
