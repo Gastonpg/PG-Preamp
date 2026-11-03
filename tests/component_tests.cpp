@@ -805,11 +805,12 @@ int main()
         return 92;
 
     // Frequency-response sanity sweep for the microphone-transformer proxy.
-    // A 192 kHz simulation permits a 48 kHz high-frequency test while keeping
-    // integer-cycle windows for every measurement frequency.
-    constexpr double transformerSweepRate = 192000.0;
+    // A 240 kHz simulation permits a 60 kHz endpoint while keeping integer-
+    // cycle windows for every measurement frequency. The upper limit follows
+    // the published 10 Hz..60 kHz response envelope of a 10468 replacement.
+    constexpr double transformerSweepRate = 240000.0;
     const std::array<int, 8> transformerPeriods = {
-        19200, 9600, 3840, 1920, 192, 19, 10, 4
+        24000, 12000, 4800, 2400, 240, 24, 12, 4
     };
     double transformerOneKhzGain = 0.0;
     for (std::size_t frequencyIndex = 0;
