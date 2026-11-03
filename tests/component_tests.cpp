@@ -243,6 +243,47 @@ int main()
     if (!near(rlNetwork.inductorCurrent(0), expectedRlCurrent, 1.0e-8))
         return 34;
 
+    // Two linearly coupled windings loaded on the secondary. For a turns
+    // ratio of 0.1, their inductances have a 100:1 ratio. The test checks the
+    // voltage ratio with finite winding resistance and a load.
+    MnaCircuit transformerNetwork;
+    const auto transformerSource = transformerNetwork.createNode();
+    const auto transformerPrimary = transformerNetwork.createNode();
+    const auto transformerSecondary = transformerNetwork.createNode();
+    const auto transformerSourceId =
+        transformerNetwork.addVoltageSource(transformerSource, MnaCircuit::ground, 0.0);
+    transformerNetwork.addResistor(transformerSource, transformerPrimary, 10.0);
+    const auto primaryWinding =
+        transformerNetwork.addInductor(transformerPrimary, MnaCircuit::ground, 100.0, 5.0);
+    const auto secondaryWinding =
+        transformerNetwork.addInductor(transformerSecondary, MnaCircuit::ground, 1.0, 0.5);
+    if (!transformerNetwork.addMutualCoupling(primaryWinding, secondaryWinding, 0.999))
+        return 45;
+    transformerNetwork.addResistor(transformerSecondary, MnaCircuit::ground, 100.0);
+
+    double primarySquares = 0.0;
+    double secondarySquares = 0.0;
+    constexpr int transformerSamples = 960;
+    for (int sample = 0; sample < transformerSamples; ++sample)
+    {
+        const double input = std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+        if (!transformerNetwork.setVoltageSource(transformerSourceId, input))
+            return 46;
+        const auto solved = transformerNetwork.step(solverDt, 293.15, 80, 1.0e-9);
+        if (!solved.converged)
+            return 47;
+        if (sample >= 480)
+        {
+            const double primaryVoltage = transformerNetwork.nodeVoltage(transformerPrimary);
+            const double secondaryVoltage = transformerNetwork.nodeVoltage(transformerSecondary);
+            primarySquares += primaryVoltage * primaryVoltage;
+            secondarySquares += secondaryVoltage * secondaryVoltage;
+        }
+    }
+    const double turnsRatioMeasured = std::sqrt(secondarySquares / primarySquares);
+    if (!(turnsRatioMeasured > 0.085 && turnsRatioMeasured < 0.115))
+        return 48;
+
     // Complete common-emitter bias network: divider, collector/emitter
     // resistors and a nonlinear NPN transistor are solved simultaneously.
     MnaCircuit amplifierBias;
