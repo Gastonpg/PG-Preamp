@@ -29,7 +29,7 @@ Iron contains no injected random white-noise source. It can still transform nois
 
 ### A Stage level matching
 
-The fixed common-emitter test circuit measures about 4.1316x small-signal voltage gain at 1 kHz. When A Stage is switched off, its dry path uses that reference gain as makeup, preventing the roughly 12.3 dB level drop heard in the initial build. This compensation is a level-matched colour switch, not a claim that a passive bypassed transistor stage has physical gain.
+The fixed common-emitter test circuit measures about 4.14469x small-signal voltage gain at 1 kHz. When A Stage is switched off, its dry path uses that reference gain as makeup, preventing the roughly 12.3 dB level drop heard in the initial build. This compensation is a level-matched colour switch, not a claim that a passive bypassed transistor stage has physical gain.
 
 ### Real-time behavior
 
