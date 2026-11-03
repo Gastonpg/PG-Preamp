@@ -26,6 +26,7 @@ public:
         double fluxWebers = 0.0;
         double magnetization = 0.0;
         double hysteresisWorkDensityJoulesPerM3 = 0.0;
+        double hysteresisWorkIncrementDensityJoulesPerM3 = 0.0;
         double eddyLossDensityWattsPerM3 = 0.0;
         double fluxDensityRateTeslaPerSecond = 0.0;
     };
@@ -140,6 +141,7 @@ public:
             fluxDensity * coreAreaSquareMeters_,
             magnetization,
             hysteresisWorkDensity_,
+            incrementalWork,
             eddyLossCoefficient_ * rate * rate,
             rate
         };
