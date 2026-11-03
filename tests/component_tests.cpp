@@ -634,6 +634,9 @@ int main()
         return 79;
     if (!(realtimeInputCorrelation < 0.0))
         return 75;
+    std::cout.precision(10);
+    std::cout << "Fixed common-emitter: gain=" << realtimeVoltageGain
+              << "x, max Newton iterations=" << maximumObservedIterations << "\n";
     if (maximumObservedIterations > realtimeParameters.maximumNewtonIterations)
         return 76;
     if (!realtimeStage.lastResult().converged ||
