@@ -832,6 +832,98 @@ int main()
               << " mA, minimum Vce=" << minimumCollectorEmitterVolts
               << " V (no cutoff)\\n";
 
+    // Temperature robustness: retain a forward-active bias and full-cycle
+    // conduction over a moderate ambient-temperature span. These are model
+    // sweeps, not a claim about package self-heating or a specific device.
+    for (const double temperature : {273.15, 300.15, 343.15})
+    {
+        const auto temperatureTransistor =
+            PGAudio::Circuit::PgAStageProfileV1::makeTransistor(temperature);
+        FixedCommonEmitterStage temperatureStage;
+        if (!temperatureStage.prepare(
+                48000.0,
+                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                temperatureTransistor))
+            return 129;
+
+        const auto& temperatureBias = temperatureStage.biasOperatingPoint();
+        if (!temperatureBias.converged ||
+            !(temperatureBias.collectorCurrentAmps > 0.0) ||
+            !(temperatureBias.collectorEmitterVolts > 1.0))
+            return 130;
+
+        double temperatureMinimumCollectorCurrent =
+            std::numeric_limits<double>::infinity();
+        double temperatureMinimumVce =
+            std::numeric_limits<double>::infinity();
+        for (int sample = 0; sample < classAHeadroomSamples; ++sample)
+        {
+            const double input = maximumNominalInputPeakVolts *
+                std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!temperatureStage.processSample(static_cast<float>(input), result) ||
+                !(result.collectorCurrentAmps > 0.0) ||
+                !(result.collectorEmitterVolts > 0.2))
+                return 131;
+            temperatureMinimumCollectorCurrent = std::min(
+                temperatureMinimumCollectorCurrent, result.collectorCurrentAmps);
+            temperatureMinimumVce = std::min(
+                temperatureMinimumVce, result.collectorEmitterVolts);
+        }
+        std::cout << "PG A Stage M1 temperature "
+                  << temperature << " K: bias Ic="
+                  << temperatureBias.collectorCurrentAmps * 1000.0
+                  << " mA, Vce=" << temperatureBias.collectorEmitterVolts
+                  << " V, min-cycle Ic="
+                  << temperatureMinimumCollectorCurrent * 1000.0
+                  << " mA\\n";
+    }
+
+    // Bias network tolerance corners: all 16 combinations of +/-5% on the
+    // divider, collector resistor and emitter resistor must remain forward-
+    // active through the nominal +18 dB input envelope.
+    for (int corner = 0; corner < 16; ++corner)
+    {
+        auto toleranceParameters =
+            PGAudio::Circuit::PgAStageProfileV1::makeStageParameters();
+        const auto toleranceScale = [corner](int bit)
+        {
+            return (corner & (1 << bit)) != 0 ? 1.05 : 0.95;
+        };
+        toleranceParameters.baseFeedResistanceOhms *= toleranceScale(0);
+        toleranceParameters.baseReturnResistanceOhms *= toleranceScale(1);
+        toleranceParameters.collectorResistanceOhms *= toleranceScale(2);
+        toleranceParameters.emitterResistanceOhms *= toleranceScale(3);
+
+        FixedCommonEmitterStage toleranceStage;
+        if (!toleranceStage.prepare(48000.0, toleranceParameters,
+                                    pluginDefaultTransistor))
+            return 132;
+        if (!toleranceStage.biasOperatingPoint().converged ||
+            !(toleranceStage.biasOperatingPoint().collectorCurrentAmps > 0.0) ||
+            !(toleranceStage.biasOperatingPoint().collectorEmitterVolts > 1.0))
+            return 133;
+
+        double minimumCornerCollectorCurrent =
+            std::numeric_limits<double>::infinity();
+        for (int sample = 0; sample < classAHeadroomSamples; ++sample)
+        {
+            const double input = maximumNominalInputPeakVolts *
+                std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!toleranceStage.processSample(static_cast<float>(input), result) ||
+                !(result.collectorCurrentAmps > 0.0) ||
+                !(result.collectorEmitterVolts > 0.2))
+                return 134;
+            minimumCornerCollectorCurrent = std::min(
+                minimumCornerCollectorCurrent, result.collectorCurrentAmps);
+        }
+        if (!std::isfinite(minimumCornerCollectorCurrent))
+            return 135;
+    }
+    std::cout << "PG A Stage M1: 16 bias-network +/-5% tolerance corners "
+              << "remain Class-A-conducting at nominal maximum input\\n";
+
     // Measure distortion at two useful drive levels with an integer-cycle
     // DFT window. This is a deterministic circuit-model regression, not a
     // physical hardware measurement.
