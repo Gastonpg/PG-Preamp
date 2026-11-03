@@ -14,6 +14,8 @@ smtg_add_vst3plugin(PGPreamp
     source/pgpreampprocessor.h
     source/pgpreampprocessor.cpp
     source/circuit/pg_fixed_common_emitter.h
+    source/circuit/pg_a_stage_profile.h
+    source/circuit/pg_iron_calibration.h
     source/circuit/pg_fixed_magnetic_transformer.h
     source/pgpreampcontroller.h
     source/pgpreampcontroller.cpp
