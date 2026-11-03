@@ -1301,7 +1301,8 @@ int main()
     // Aliasing survey at a high vocal-band frequency and the maximum nominal
     // A Stage drive. At 48 kHz, harmonics above Nyquist fold back into band;
     // the 192 kHz run is a higher-rate reference for the same model/input.
-    const auto measureHighFrequencyHarmonics = [&](double sampleRate)
+    const auto measureHighFrequencyHarmonics = [&](double sampleRate,
+                                                  const EbersMollNpn& measurementTransistor)
     {
         constexpr int measurementCount = 4800;
         constexpr int discardCount = 4800;
@@ -1309,7 +1310,7 @@ int main()
         if (!spectrumStage.prepare(
                 sampleRate,
                 PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
-                pluginDefaultTransistor))
+                measurementTransistor))
         {
             std::array<double, 5> invalid{};
             invalid.fill(std::numeric_limits<double>::quiet_NaN());
@@ -1345,395 +1346,42 @@ int main()
         return amplitudes;
     };
 
-    const auto harmonicsAt48k = measureHighFrequencyHarmonics(48000.0);
-    const auto harmonicsAt192k = measureHighFrequencyHarmonics(192000.0);
-    double foldedHarmonicPower48k = 0.0;
-    double harmonicPower192k = 0.0;
-    for (std::size_t harmonic = 1; harmonic < harmonicsAt48k.size(); ++harmonic)
+    const auto reportHighFrequencyHarmonics =
+        [&](const char* profileName, const EbersMollNpn& measurementTransistor)
     {
-        if (!std::isfinite(harmonicsAt48k[harmonic]) ||
-            !std::isfinite(harmonicsAt192k[harmonic]))
-            return 127;
-        foldedHarmonicPower48k +=
-            harmonicsAt48k[harmonic] * harmonicsAt48k[harmonic];
-        harmonicPower192k +=
-            harmonicsAt192k[harmonic] * harmonicsAt192k[harmonic];
-    }
-    const double aliasRatio48k = std::sqrt(foldedHarmonicPower48k) /
-                                 harmonicsAt48k[0];
-    const double nativeHarmonicRatio192k = std::sqrt(harmonicPower192k) /
-                                          harmonicsAt192k[0];
-    if (!std::isfinite(aliasRatio48k) ||
-        !std::isfinite(nativeHarmonicRatio192k))
+        const auto harmonicsAt48k =
+            measureHighFrequencyHarmonics(48000.0, measurementTransistor);
+        const auto harmonicsAt192k =
+            measureHighFrequencyHarmonics(192000.0, measurementTransistor);
+        double foldedHarmonicPower48k = 0.0;
+        double harmonicPower192k = 0.0;
+        for (std::size_t harmonic = 1; harmonic < harmonicsAt48k.size(); ++harmonic)
+        {
+            if (!std::isfinite(harmonicsAt48k[harmonic]) ||
+                !std::isfinite(harmonicsAt192k[harmonic]))
+                return false;
+            foldedHarmonicPower48k +=
+                harmonicsAt48k[harmonic] * harmonicsAt48k[harmonic];
+            harmonicPower192k +=
+                harmonicsAt192k[harmonic] * harmonicsAt192k[harmonic];
+        }
+        const double aliasRatio48k = std::sqrt(foldedHarmonicPower48k) /
+                                     harmonicsAt48k[0];
+        const double nativeHarmonicRatio192k = std::sqrt(harmonicPower192k) /
+                                              harmonicsAt192k[0];
+        if (!std::isfinite(aliasRatio48k) ||
+            !std::isfinite(nativeHarmonicRatio192k))
+            return false;
+        std::cout << profileName << " 17 kHz / 40 mV harmonics: "
+                  << "48 kHz folded H2-H5=" << aliasRatio48k * 100.0
+                  << "%, 192 kHz reference H2-H5="
+                  << nativeHarmonicRatio192k * 100.0 << "%\\n";
+        return true;
+    };
+    if (!reportHighFrequencyHarmonics("PG A Stage M1", pluginDefaultTransistor))
+        return 127;
+    if (!reportHighFrequencyHarmonics("BC550C reference A Stage", cordellBc550c))
         return 128;
-    std::cout << "PG A Stage M1 17 kHz / 40 mV harmonics: "
-              << "48 kHz folded H2-H5=" << aliasRatio48k * 100.0
-              << "%, 192 kHz reference H2-H5="
-              << nativeHarmonicRatio192k * 100.0 << "%\\n";
-
-
-    // Real-time loaded transformer: the primary is driven through a source
-    // resistance, the secondary is terminated, and winding currents satisfy
-    // Ampere's law while induced voltages obey Faraday's law.
-    using FixedMagneticTransformerStage =
-        PGAudio::Circuit::FixedMagneticTransformerStage;
-    auto transformerParameters =
-        PGAudio::Circuit::PgIronCalibrationV1::makeParameters();
-    FixedMagneticTransformerStage transformerStage;
-    if (!near(transformerParameters.primaryTurns, 1000.0, 1.0e-12) ||
-        !near(transformerParameters.secondaryTurns, 2000.0, 1.0e-12) ||
-        !near(transformerParameters.sourceResistanceOhms, 150.0, 1.0e-12) ||
-        !near(transformerParameters.primaryWindingResistanceOhms, 12.0, 1.0e-12) ||
-        !near(transformerParameters.secondaryWindingResistanceOhms, 65.0, 1.0e-12) ||
-        !near(transformerParameters.loadResistanceOhms, 1200.0, 1.0e-12) ||
-        !near(PGAudio::Circuit::PgIronCalibrationV1::smallSignalReferenceGain,
-              1.2545, 1.0e-12))
-        return 110;
-    if (!transformerStage.prepare(48000.0, transformerParameters))
-        return 86;
-
-    double transformerStartupPeak = 0.0;
-    for (int sample = 0; sample < 256; ++sample)
-    {
-        FixedMagneticTransformerStage::ProcessResult transformerResult;
-        if (!transformerStage.processSample(0.0f, transformerResult))
-            return 87;
-        transformerStartupPeak = std::max(
-            transformerStartupPeak,
-            std::abs(static_cast<double>(transformerResult.outputVolts)));
-    }
-    if (transformerStartupPeak > 1.0e-7)
-        return 88;
-
-    double transformerInputSquares = 0.0;
-    double transformerOutputSquares = 0.0;
-    double transformerFluxPeak = 0.0;
-    constexpr int transformerAudioSamples = 4800;
-    constexpr int transformerMeasurementStart = 480;
-    constexpr int transformerMeasurementSamples =
-        transformerAudioSamples - transformerMeasurementStart;
-    std::array<double, transformerMeasurementSamples> transformerAudioOutput{};
-    for (int sample = 0; sample < transformerAudioSamples; ++sample)
-    {
-        const double input = 0.005 *
-            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
-        FixedMagneticTransformerStage::ProcessResult transformerResult;
-        if (!transformerStage.processSample(
-                static_cast<float>(input), transformerResult))
-            return 89;
-        if (!std::isfinite(transformerResult.outputVolts) ||
-            !std::isfinite(transformerResult.primaryCurrentAmps) ||
-            !std::isfinite(transformerResult.secondaryCurrentAmps) ||
-            !std::isfinite(transformerResult.fluxDensityTesla))
-            return 90;
-        transformerFluxPeak = std::max(
-            transformerFluxPeak, std::abs(transformerResult.fluxDensityTesla));
-        if (sample >= transformerMeasurementStart)
-        {
-            const std::size_t measuredIndex =
-                static_cast<std::size_t>(sample - transformerMeasurementStart);
-            transformerAudioOutput[measuredIndex] = transformerResult.outputVolts;
-            transformerInputSquares += input * input;
-            transformerOutputSquares +=
-                static_cast<double>(transformerResult.outputVolts) *
-                transformerResult.outputVolts;
-        }
-    }
-    const double transformerGain = std::sqrt(
-        transformerOutputSquares / transformerInputSquares);
-    if (!(transformerGain > 0.95 && transformerGain < 1.5) ||
-        !near(transformerGain, 1.2545, 0.002))
-        return 91;
-    if (!near(transformerStage.turnsRatio(), 2.0, 1.0e-12))
-        return 99;
-
-    // The smooth core model must keep a clean single tone periodic. Measure
-    // a non-harmonic DFT bin to catch broadband reversal artifacts that can
-    // sound like hiss even when the input itself is a pure sine.
-    const auto spectralAmplitude = [&](int bin)
-    {
-        double real = 0.0;
-        double imaginary = 0.0;
-        for (int n = 0; n < transformerMeasurementSamples; ++n)
-        {
-            const double phase = 2.0 * pi * bin * n /
-                static_cast<double>(transformerMeasurementSamples);
-            real += transformerAudioOutput[static_cast<std::size_t>(n)] *
-                    std::cos(phase);
-            imaginary -= transformerAudioOutput[static_cast<std::size_t>(n)] *
-                         std::sin(phase);
-        }
-        const double scale = 2.0 / transformerMeasurementSamples;
-        return scale * std::sqrt(real * real + imaginary * imaginary);
-    };
-    const double transformerFundamental = spectralAmplitude(90);
-    const double transformerNonHarmonicSpur = std::max(
-        spectralAmplitude(101),
-        std::max(spectralAmplitude(137), spectralAmplitude(173)));
-
-    // Estimate the complete non-harmonic spectral residual (noise-like bins),
-    // not just a few hand-picked frequencies. Goertzel recurrence avoids
-    // repeated sin/cos evaluation for every sample/bin.
-    double transformerBroadbandResidualPower = 0.0;
-    constexpr int transformerSpectrumBins =
-        transformerMeasurementSamples / 2;
-    for (int bin = 1; bin <= transformerSpectrumBins; ++bin)
-    {
-        if ((bin % 90) == 0)
-            continue; // exclude the fundamental and its integer harmonics
-
-        const double omega = 2.0 * pi * bin /
-            static_cast<double>(transformerMeasurementSamples);
-        const double coefficient = 2.0 * std::cos(omega);
-        double state1 = 0.0;
-        double state2 = 0.0;
-        for (int n = 0; n < transformerMeasurementSamples; ++n)
-        {
-            const double state0 =
-                transformerAudioOutput[static_cast<std::size_t>(n)] +
-                coefficient * state1 - state2;
-            state2 = state1;
-            state1 = state0;
-        }
-        const double power = state1 * state1 + state2 * state2 -
-                             coefficient * state1 * state2;
-        transformerBroadbandResidualPower += std::max(0.0, power);
-    }
-    const double transformerBroadbandResidual =
-        2.0 * std::sqrt(transformerBroadbandResidualPower) /
-        (static_cast<double>(transformerMeasurementSamples) *
-         transformerFundamental);
-
-    double transformerHarmonicPower = 0.0;
-    for (int harmonic = 2; harmonic <= 24; ++harmonic)
-    {
-        const double amplitude =
-            spectralAmplitude(90 * harmonic);
-        transformerHarmonicPower += amplitude * amplitude;
-    }
-    const double transformerLowLevelThd =
-        std::sqrt(transformerHarmonicPower) / transformerFundamental;
-
-    if (!(transformerFundamental > 1.0e-6) ||
-        transformerNonHarmonicSpur > transformerFundamental * 1.0e-3 ||
-        transformerBroadbandResidual > 1.0e-3 ||
-        transformerLowLevelThd > 0.005)
-        return 98;
-
-    std::cout << "Iron 10468-equivalent reference: small-signal gain="
-              << transformerGain << "x, non-harmonic spur="
-              << transformerNonHarmonicSpur / transformerFundamental
-              << ", low-level THD=" << transformerLowLevelThd
-              << ", broadband residual=" << transformerBroadbandResidual
-              << "\\n";
-    if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
-        return 92;
-
-    // Frequency-response sanity sweep for the microphone-transformer proxy.
-    // A 240 kHz simulation permits a 60 kHz endpoint while keeping integer-
-    // cycle windows for every measurement frequency. The upper limit follows
-    // the published 10 Hz..60 kHz response envelope of a 10468 replacement.
-    constexpr double transformerSweepRate = 240000.0;
-    const std::array<int, 8> transformerPeriods = {
-        24000, 12000, 4800, 2400, 240, 24, 12, 4
-    };
-    // Sowter's published 10468 replacement response condition is 1 kohm
-    // source / 600 ohm load, so use those source/load values for this sweep.
-    auto transformerFrequencyParameters = transformerParameters;
-    transformerFrequencyParameters.sourceResistanceOhms = 1000.0;
-    transformerFrequencyParameters.loadResistanceOhms = 600.0;
-    std::array<double, transformerPeriods.size()> transformerFrequencyGains{};
-    double transformerOneKhzGain = 0.0;
-    double maximumTransformerResponseDeviationDb = 0.0;
-    for (std::size_t frequencyIndex = 0;
-         frequencyIndex < transformerPeriods.size(); ++frequencyIndex)
-    {
-        const int period = transformerPeriods[frequencyIndex];
-         FixedMagneticTransformerStage sweepTransformer;
-        if (!sweepTransformer.prepare(
-                transformerSweepRate, transformerFrequencyParameters))
-            return 100;
-
-        const int settleSamples = period * 8;
-        const int measurementSamples = period * 4;
-        double inputEnergy = 0.0;
-        double outputEnergy = 0.0;
-        for (int sample = 0; sample < settleSamples + measurementSamples; ++sample)
-        {
-            const double input = 0.005 *
-                std::sin(2.0 * pi * sample / static_cast<double>(period));
-            FixedMagneticTransformerStage::ProcessResult sweepResult;
-            if (!sweepTransformer.processSample(
-                    static_cast<float>(input), sweepResult))
-                return 101;
-            if (!std::isfinite(sweepResult.outputVolts))
-                return 102;
-
-            if (sample >= settleSamples)
-            {
-                inputEnergy += input * input;
-                outputEnergy += static_cast<double>(sweepResult.outputVolts) *
-                                sweepResult.outputVolts;
-            }
-        }
-
-        const double gain = std::sqrt(outputEnergy / inputEnergy);
-        transformerFrequencyGains[frequencyIndex] = gain;
-        if (frequencyIndex == 4)
-            transformerOneKhzGain = gain;
-        if (!std::isfinite(gain) || !(gain > 0.0))
-            return 103;
-    }
-
-    if (!(transformerOneKhzGain > 0.0) ||
-        !std::isfinite(transformerOneKhzGain))
-        return 105;
-    for (std::size_t frequencyIndex = 0;
-         frequencyIndex < transformerFrequencyGains.size(); ++frequencyIndex)
-    {
-        const double frequency =
-            transformerSweepRate / transformerPeriods[frequencyIndex];
-        const double deviationDb = 20.0 * std::log10(
-            transformerFrequencyGains[frequencyIndex] / transformerOneKhzGain);
-        maximumTransformerResponseDeviationDb = std::max(
-            maximumTransformerResponseDeviationDb, std::abs(deviationDb));
-        if (std::abs(deviationDb) > 0.5)
-        {
-            std::cerr << "Iron response at " << frequency << " Hz deviated "
-                      << deviationDb << " dB from its 1 kHz reference\\n";
-            return 104;
-        }
-    }
-    std::cout << "Iron frequency-response sweep: 1 kHz reference gain="
-              << transformerOneKhzGain << "x, max deviation="
-              << maximumTransformerResponseDeviationDb << " dB\\n";
-
-    // A deliberately high-level, low-frequency drive exercises the nonlinear
-    // core region. The reduced-order core must remain finite and bounded.
-    transformerStage.reset();
-    double highLevelFluxPeak = 0.0;
-    for (int sample = 0; sample < 9600; ++sample)
-    {
-        const double input = 5.0 *
-            std::sin(2.0 * pi * 10.0 * sample / 48000.0);
-        FixedMagneticTransformerStage::ProcessResult transformerResult;
-        if (!transformerStage.processSample(
-                static_cast<float>(input), transformerResult))
-            return 93;
-        if (!std::isfinite(transformerResult.outputVolts) ||
-            !std::isfinite(transformerResult.fluxDensityTesla))
-            return 94;
-        highLevelFluxPeak = std::max(
-            highLevelFluxPeak, std::abs(transformerResult.fluxDensityTesla));
-    }
-    if (!(highLevelFluxPeak > transformerFluxPeak &&
-          highLevelFluxPeak < 1.5))
-        return 95;
-
-    // The fixed transformer must remain stable at common host sample rates.
-    for (const double rate : {44100.0, 48000.0, 96000.0, 192000.0})
-    {
-        FixedMagneticTransformerStage multirateTransformer;
-        if (!multirateTransformer.prepare(rate, transformerParameters))
-            return 96;
-        for (int sample = 0; sample < 512; ++sample)
-        {
-            const float input = static_cast<float>(
-                0.02 * std::sin(2.0 * pi * 300.0 * sample / rate));
-            FixedMagneticTransformerStage::ProcessResult transformerResult;
-            if (!multirateTransformer.processSample(input, transformerResult) ||
-                !std::isfinite(transformerResult.outputVolts))
-                return 97;
-        }
-    }
-
-    // Fixed-topology real-time candidate: same device model, fixed resistor
-    // network and coupling-capacitor states, solved with stack-only arrays.
-    FixedCommonEmitterStage realtimeStage;
-    FixedCommonEmitterStage::Parameters realtimeParameters;
-    if (!realtimeStage.prepare(48000.0, realtimeParameters, transistor))
-        return 72;
-
-    double realtimeInputCorrelation = 0.0;
-    double realtimeInputSquares = 0.0;
-    double realtimeOutputSquares = 0.0;
-    double realtimeOutputSum = 0.0;
-    unsigned maximumObservedIterations = 0;
-    constexpr int realtimeSamples = 960;
-    constexpr int realtimeMeasureStart = 96;
-    for (int sample = 0; sample < realtimeSamples; ++sample)
-    {
-        const double input = 0.005 *
-            std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
-        FixedCommonEmitterStage::ProcessResult realtimeResult;
-        if (!realtimeStage.processSample(static_cast<float>(input), realtimeResult))
-            return 73;
-        maximumObservedIterations =
-            std::max(maximumObservedIterations, realtimeResult.iterations);
-
-        if (sample >= realtimeMeasureStart)
-        {
-            realtimeInputCorrelation += input * realtimeResult.output;
-            realtimeInputSquares += input * input;
-            realtimeOutputSquares +=
-                static_cast<double>(realtimeResult.output) * realtimeResult.output;
-            realtimeOutputSum += realtimeResult.output;
-        }
-    }
-
-    const int realtimeMeasuredSamples = realtimeSamples - realtimeMeasureStart;
-    const double realtimeOutputMean = realtimeOutputSum / realtimeMeasuredSamples;
-    const double realtimeInputRms =
-        std::sqrt(realtimeInputSquares / realtimeMeasuredSamples);
-    const double realtimeOutputRms = std::sqrt(std::max(
-        0.0, realtimeOutputSquares / realtimeMeasuredSamples -
-             realtimeOutputMean * realtimeOutputMean));
-    const double realtimeVoltageGain = realtimeOutputRms / realtimeInputRms;
-    if (!(realtimeVoltageGain > 2.0) ||
-        !near(realtimeVoltageGain, 4.1316, 0.05))
-        return 74;
-    if (!near(realtimeVoltageGain, mnaReferenceVoltageGain,
-              mnaReferenceVoltageGain * 0.05))
-        return 79;
-    if (!(realtimeInputCorrelation < 0.0))
-        return 75;
-    std::cout.precision(10);
-    std::cout << "Fixed common-emitter: gain=" << realtimeVoltageGain
-              << "x, max Newton iterations=" << maximumObservedIterations << "\n";
-    if (maximumObservedIterations > realtimeParameters.maximumNewtonIterations)
-        return 76;
-    if (!realtimeStage.lastResult().converged ||
-        !std::isfinite(realtimeStage.lastResult().residualAmps))
-        return 77;
-
-    realtimeStage.reset();
-    for (int sample = 0; sample < 128; ++sample)
-    {
-        const float output = realtimeStage.processSample(0.0f);
-        if (!std::isfinite(output))
-            return 78;
-    }
-
-    // Fixed-topology stage must remain convergent at common host rates.
-    for (const double rate : {44100.0, 48000.0, 96000.0, 192000.0})
-    {
-        FixedCommonEmitterStage multirateStage;
-        if (!multirateStage.prepare(rate, realtimeParameters, transistor))
-            return 80;
-        for (int sample = 0; sample < 512; ++sample)
-        {
-            const float input = static_cast<float>(
-                0.02 * std::sin(2.0 * pi * 1000.0 * sample / rate));
-            FixedCommonEmitterStage::ProcessResult rateResult;
-            if (!multirateStage.processSample(input, rateResult))
-                return 81;
-            if (!std::isfinite(rateResult.output) ||
-                !std::isfinite(rateResult.collectorVolts) ||
-                rateResult.collectorVolts < -0.1 ||
-                rateResult.collectorVolts > realtimeParameters.supplyVolts + 0.1)
-                return 82;
-        }
-    }
 
     // Release-mode throughput estimate for the actual stereo signal path:
     // two transformer + two common-emitter instances for one second of audio.
