@@ -17,10 +17,11 @@ struct PgAStageProfileV1
     static constexpr double referenceInputPeakVolts = 0.005;
     static constexpr double nominalTemperatureKelvin = 300.15;
 
-    static EbersMollNpn makeTransistor() noexcept
+    static EbersMollNpn makeTransistor(
+        double temperatureKelvin = nominalTemperatureKelvin) noexcept
     {
         EbersMollNpn transistor;
-        transistor.prepare(1.0e-14, 120.0, 2.0, nominalTemperatureKelvin);
+        transistor.prepare(1.0e-14, 120.0, 2.0, temperatureKelvin);
 
         BjtAdvancedParameters device;
         device.forwardEarlyVoltage = 85.0;
