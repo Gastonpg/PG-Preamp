@@ -1,5 +1,8 @@
 #include "pgpreampcontroller.h"
 #include "pgpreampcids.h"
+#include "base/source/fstreamer.h"
+
+#include <algorithm>
 
 namespace Steinberg {
 
@@ -26,6 +29,28 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
         Vst::ParameterInfo::kCanAutomate,
         kPGPreampOutputGainId);
 
+    return kResultOk;
+}
+
+tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
+{
+    if (state == nullptr)
+        return kResultFalse;
+
+    IBStreamer streamer(state, kLittleEndian);
+    float bypassValue = 0.0f;
+    float inputValue = 0.4f;
+    float outputValue = 0.5f;
+    if (!streamer.readFloat(bypassValue) ||
+        !streamer.readFloat(inputValue) ||
+        !streamer.readFloat(outputValue))
+        return kResultFalse;
+
+    setParamNormalized(kPGPreampBypassId, bypassValue >= 0.5f ? 1.0 : 0.0);
+    setParamNormalized(kPGPreampInputGainId,
+                       std::clamp(static_cast<double>(inputValue), 0.0, 1.0));
+    setParamNormalized(kPGPreampOutputGainId,
+                       std::clamp(static_cast<double>(outputValue), 0.0, 1.0));
     return kResultOk;
 }
 
