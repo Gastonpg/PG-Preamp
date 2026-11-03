@@ -671,8 +671,11 @@ int main()
     }
     const double transformerGain = std::sqrt(
         transformerOutputSquares / transformerInputSquares);
-    if (!(transformerGain > 0.95 && transformerGain < 1.5))
+    if (!(transformerGain > 0.95 && transformerGain < 1.5) ||
+        !near(transformerGain, 1.2545, 0.002))
         return 91;
+    if (!near(transformerStage.turnsRatio(), 2.0, 1.0e-12))
+        return 99;
 
     // The smooth core model must keep a clean single tone periodic. Measure
     // a non-harmonic DFT bin to catch broadband reversal artifacts that can
@@ -800,7 +803,8 @@ int main()
         0.0, realtimeOutputSquares / realtimeMeasuredSamples -
              realtimeOutputMean * realtimeOutputMean));
     const double realtimeVoltageGain = realtimeOutputRms / realtimeInputRms;
-    if (!(realtimeVoltageGain > 2.0))
+    if (!(realtimeVoltageGain > 2.0) ||
+        !near(realtimeVoltageGain, 4.1316, 0.05))
         return 74;
     if (!near(realtimeVoltageGain, mnaReferenceVoltageGain,
               mnaReferenceVoltageGain * 0.05))
