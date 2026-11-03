@@ -83,13 +83,13 @@ At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures 
 
 `PgAStageProfileV1` centralizes the transistor and fixed common-emitter network used by the VST3 processor. The profile preserves the currently auditioned sound; it does not silently replace the generic transistor with a different device model. Its present BJT constants (IS, beta, Early voltages, series resistances, junction capacitances and transit times) are explicitly provisional.
 
-The fixed stage now reports its solved quiescent point and the instantaneous terminal currents. Automated regressions check:
+The fixed stage now reports its solved quiescent point and the instantaneous terminal currents. At 48 kHz and 300.15 K, the current profile solves to approximately 1.04182 mA collector current and 6.04779 V VCE. Automated regressions check:
 - positive collector current and negative emitter current at rest;
 - collector/base/emitter current conservation;
 - a forward-active quiescent point with more than 1 V collector-emitter headroom;
-- uninterrupted collector conduction and positive active-region voltage over a complete 1 kHz cycle at 40 mV peak input, representing the nominal +18 dB Input/full-scale host envelope at the circuit boundary.
+- uninterrupted collector conduction and positive active-region voltage over a complete 1 kHz cycle at 40 mV peak input, representing the nominal +18 dB Input/full-scale host envelope at the circuit boundary. In that test the minimum collector current is 1.00486 mA and minimum VCE is 5.8446 V.
 
-These are bounded engineering checks for the current topology and temperature, not a universal guarantee under arbitrary overload, frequency, temperature or component spread. The word *Class A* describes the conduction mode under the specified test envelope, not a claim of a fully calibrated commercial hardware clone.
+The same regression harness measures A Stage THD of approximately 0.00249% at 5 mV peak and 0.01953% at 40 mV peak at 1 kHz. Its small-signal sweep from 20 Hz to 20 kHz varies by no more than 0.0177 dB from the 1 kHz reference. These are deterministic synthetic tests of the present model; they are not measurements of a physical preamp. These are bounded engineering checks for the current topology and temperature, not a universal guarantee under arbitrary overload, frequency, temperature or component spread. The word *Class A* describes the conduction mode under the specified test envelope, not a claim of a fully calibrated commercial hardware clone.
 
 A possible future device reference is the onsemi BC550C low-noise NPN. Its datasheet specifies a C gain grade of 420–800 at 2 mA / 5 V, a typical 1.2 dB noise figure at 200 µA / 5 V / 1 kHz with 2 kΩ source resistance, a typical 300 MHz transition frequency at 10 mA, and typical input/output capacitance data. Those are sparse datasheet points, not a complete Gummel-Poon parameter set; therefore the current profile does not claim to be a BC550C model. Device fitting still needs a manufacturer SPICE card or measured transistor curves and should be validated at the actual stage bias current.
 
@@ -167,5 +167,7 @@ The processor supports 32-bit audio; 64-bit processing is not implemented. The l
 4. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
 5. Profile real-time CPU cost, oversampling requirements, denormal behavior and stability on the target PC at 44.1/48/96/192 kHz.
 6. Refine the temporary rack editor and add a properly metered output display.
+
+A 48 kHz stereo benchmark of two active Iron instances plus two A Stage instances currently takes about 10.0% of one second of audio time on the GitHub Ubuntu test runner, with a maximum of one Newton iteration for A Stage and two for Iron at the benchmark signal. This is only a CI-runner baseline and must not be read as a CPU estimate for the target PC.
 
 The component and model libraries remain independent of the VST3 wrapper so validated parts can later be reused by PG Optical Compressor.
