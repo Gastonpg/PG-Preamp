@@ -39,6 +39,10 @@ struct BjtAdvancedParameters
     double baseCollectorGradingCoefficient = 0.33;
     double forwardTransitTimeSeconds = 0.0;
     double reverseTransitTimeSeconds = 0.0;
+    double forwardEmissionCoefficient = 1.0;
+    double reverseEmissionCoefficient = 1.0;
+    bool useGummelPoonBaseCharge = false;
+    double betaRollOffExponent = 0.5;
 
     // Optional Gummel-Poon-style base-current terms. Zero leakage and infinite
     // roll-off knees preserve the previous Ebers-Moll behavior by default.
@@ -126,6 +130,13 @@ public:
                 ? std::clamp(parameters.baseCollectorGradingCoefficient, 0.0, 0.95) : 0.33;
         advanced_.forwardTransitTimeSeconds = nonNegative(parameters.forwardTransitTimeSeconds);
         advanced_.reverseTransitTimeSeconds = nonNegative(parameters.reverseTransitTimeSeconds);
+        advanced_.forwardEmissionCoefficient =
+            positiveOr(parameters.forwardEmissionCoefficient, 1.0);
+        advanced_.reverseEmissionCoefficient =
+            positiveOr(parameters.reverseEmissionCoefficient, 1.0);
+        advanced_.useGummelPoonBaseCharge = parameters.useGummelPoonBaseCharge;
+        advanced_.betaRollOffExponent = std::isfinite(parameters.betaRollOffExponent)
+            ? std::clamp(parameters.betaRollOffExponent, 0.1, 1.0) : 0.5;
         advanced_.baseEmitterLeakageSaturationCurrentAmps =
             nonNegative(parameters.baseEmitterLeakageSaturationCurrentAmps);
         advanced_.baseCollectorLeakageSaturationCurrentAmps =
@@ -161,16 +172,20 @@ public:
 
         const double vbe = baseVolts - emitterVolts;
         const double vbc = baseVolts - collectorVolts;
-        const double vbeNormalized = vbe / thermalVoltage_;
-        const double vbcNormalized = vbc / thermalVoltage_;
+        const double forwardThermalVoltage =
+            thermalVoltage_ * advanced_.forwardEmissionCoefficient;
+        const double reverseThermalVoltage =
+            thermalVoltage_ * advanced_.reverseEmissionCoefficient;
+        const double vbeNormalized = vbe / forwardThermalVoltage;
+        const double vbcNormalized = vbc / reverseThermalVoltage;
         const double vbeClamped = std::clamp(vbeNormalized, -80.0, 40.0);
         const double vbcClamped = std::clamp(vbcNormalized, -80.0, 40.0);
         const double forwardJunction = saturationCurrentAmps_ * std::expm1(vbeClamped);
         const double reverseJunction = saturationCurrentAmps_ * std::expm1(vbcClamped);
         const double forwardDerivative = vbeNormalized == vbeClamped
-            ? saturationCurrentAmps_ * std::exp(vbeClamped) / thermalVoltage_ : 0.0;
+            ? saturationCurrentAmps_ * std::exp(vbeClamped) / forwardThermalVoltage : 0.0;
         const double reverseDerivative = vbcNormalized == vbcClamped
-            ? saturationCurrentAmps_ * std::exp(vbcClamped) / thermalVoltage_ : 0.0;
+            ? saturationCurrentAmps_ * std::exp(vbcClamped) / reverseThermalVoltage : 0.0;
 
         const double forwardLeakageNormalized =
             vbeNormalized / advanced_.baseEmitterLeakageEmissionCoefficient;
@@ -202,23 +217,11 @@ public:
         const double transport = forwardJunction - reverseJunction / alphaReverse_;
         const double ibForward = 1.0 / alphaForward_ - 1.0;
         const double ibReverse = 1.0 / alphaReverse_ - 1.0;
-        const double forwardRollOff = std::isfinite(
-            advanced_.forwardBetaRollOffCurrentAmps) &&
-            advanced_.forwardBetaRollOffCurrentAmps > 0.0 &&
-            forwardJunction > 0.0
-                ? 1.0 + forwardJunction / advanced_.forwardBetaRollOffCurrentAmps
-                : 1.0;
-        const double reverseRollOff = std::isfinite(
-            advanced_.reverseBetaRollOffCurrentAmps) &&
-            advanced_.reverseBetaRollOffCurrentAmps > 0.0 &&
-            reverseJunction > 0.0
-                ? 1.0 + reverseJunction / advanced_.reverseBetaRollOffCurrentAmps
-                : 1.0;
-        const double baseWithoutCollectorLeakage =
-            forwardJunction * ibForward * forwardRollOff +
-            reverseJunction * ibReverse * reverseRollOff +
-            forwardLeakage;
-        const double base = baseWithoutCollectorLeakage + reverseLeakage;
+        const double dTransport[3] = {
+            forwardDerivative - reverseDerivative / alphaReverse_,
+            reverseDerivative / alphaReverse_,
+            -forwardDerivative
+        };
 
         double earlyFactor = 1.0;
         double earlySlope = 0.0;
@@ -238,11 +241,104 @@ public:
                 earlySlope = -1.0 / advanced_.reverseEarlyVoltage;
         }
 
+        const double forwardRollOff = std::isfinite(
+            advanced_.forwardBetaRollOffCurrentAmps) &&
+            advanced_.forwardBetaRollOffCurrentAmps > 0.0 &&
+            forwardJunction > 0.0
+                ? 1.0 + forwardJunction / advanced_.forwardBetaRollOffCurrentAmps
+                : 1.0;
+        const double reverseRollOff = std::isfinite(
+            advanced_.reverseBetaRollOffCurrentAmps) &&
+            advanced_.reverseBetaRollOffCurrentAmps > 0.0 &&
+            reverseJunction > 0.0
+                ? 1.0 + reverseJunction / advanced_.reverseBetaRollOffCurrentAmps
+                : 1.0;
+
+        const double baseWithoutCollectorLeakage =
+            forwardJunction * ibForward *
+                (advanced_.useGummelPoonBaseCharge ? 1.0 : forwardRollOff) +
+            reverseJunction * ibReverse *
+                (advanced_.useGummelPoonBaseCharge ? 1.0 : reverseRollOff) +
+            forwardLeakage;
+        const double base = baseWithoutCollectorLeakage + reverseLeakage;
+
+        double collectorTransport = transport * earlyFactor;
+        double collectorDerivative[3] = {
+            dTransport[0] * earlyFactor,
+            dTransport[1] * earlyFactor + transport * earlySlope,
+            dTransport[2] * earlyFactor - transport * earlySlope
+        };
+
+        if (advanced_.useGummelPoonBaseCharge)
+        {
+            // Compact static Gummel-Poon base-charge term:
+            // QB = Q1 * (1 + (1 + 4*(IF/IKF + IR/IKR))^NKF) / 2.
+            // This reproduces the square-root default (NKF=0.5) used by
+            // SPICE when the exponent is omitted. The legacy M1 profile
+            // remains on its original Ebers-Moll/Early-law path.
+            const double inverseVaf = std::isfinite(advanced_.forwardEarlyVoltage)
+                ? 1.0 / advanced_.forwardEarlyVoltage : 0.0;
+            const double inverseVar = std::isfinite(advanced_.reverseEarlyVoltage)
+                ? 1.0 / advanced_.reverseEarlyVoltage : 0.0;
+            const double q1Denominator = 1.0 - vbc * inverseVaf - vbe * inverseVar;
+            const bool q1Unclamped = q1Denominator > 0.05;
+            const double q1 = 1.0 / std::max(0.05, q1Denominator);
+            const double q1DerivativeBe = q1Unclamped
+                ? q1 * q1 * inverseVar : 0.0;
+            const double q1DerivativeBc = q1Unclamped
+                ? q1 * q1 * inverseVaf : 0.0;
+
+            const double inverseIkf =
+                std::isfinite(advanced_.forwardBetaRollOffCurrentAmps) &&
+                advanced_.forwardBetaRollOffCurrentAmps > 0.0
+                    ? 1.0 / advanced_.forwardBetaRollOffCurrentAmps : 0.0;
+            const double inverseIkr =
+                std::isfinite(advanced_.reverseBetaRollOffCurrentAmps) &&
+                advanced_.reverseBetaRollOffCurrentAmps > 0.0
+                    ? 1.0 / advanced_.reverseBetaRollOffCurrentAmps : 0.0;
+            const double q2 = std::max(
+                0.0, forwardJunction * inverseIkf +
+                     reverseJunction * inverseIkr);
+            const double q2Argument = std::max(1.0e-12, 1.0 + 4.0 * q2);
+            const double q2Power = std::pow(
+                q2Argument, advanced_.betaRollOffExponent);
+            const double q2PowerDerivative =
+                advanced_.betaRollOffExponent *
+                std::pow(q2Argument, advanced_.betaRollOffExponent - 1.0);
+            const double q2DerivativeBe = inverseIkf * forwardDerivative;
+            const double q2DerivativeBc = inverseIkr * reverseDerivative;
+
+            const double baseCharge = q1 * (1.0 + q2Power) * 0.5;
+            const double baseChargeDerivativeBe =
+                0.5 * (q1DerivativeBe * (1.0 + q2Power) +
+                       q1 * q2PowerDerivative * 4.0 * q2DerivativeBe);
+            const double baseChargeDerivativeBc =
+                0.5 * (q1DerivativeBc * (1.0 + q2Power) +
+                       q1 * q2PowerDerivative * 4.0 * q2DerivativeBc);
+
+            const double safeBaseCharge = std::max(1.0e-9, baseCharge);
+            const double inverseBaseCharge = 1.0 / safeBaseCharge;
+            collectorTransport = transport * inverseBaseCharge;
+            const double inverseBaseChargeSquared =
+                inverseBaseCharge * inverseBaseCharge;
+            const double baseChargeDerivative[3] = {
+                baseChargeDerivativeBe + baseChargeDerivativeBc,
+                -baseChargeDerivativeBc,
+                -baseChargeDerivativeBe
+            };
+            for (int column = 0; column < 3; ++column)
+            {
+                collectorDerivative[column] =
+                    dTransport[column] * inverseBaseCharge -
+                    transport * baseChargeDerivative[column] *
+                        inverseBaseChargeSquared;
+            }
+        }
+
         // The BE leakage branch conducts from base to emitter. The BC
-        // leakage branch conducts from base to collector, so it contributes
-        // equally and oppositely to the base and collector terminal currents.
-        const double collector = transport * earlyFactor - reverseLeakage;
-        const double emitter = -transport * earlyFactor -
+        // leakage branch conducts from base to collector.
+        const double collector = collectorTransport - reverseLeakage;
+        const double emitter = -collectorTransport -
                                baseWithoutCollectorLeakage;
         result.currents = {collector, base, emitter};
 
@@ -261,14 +357,13 @@ public:
                     advanced_.reverseBetaRollOffCurrentAmps
                 : 1.0);
         const double baseDerivativeBe =
-            forwardDerivative * forwardBaseSlope + forwardLeakageDerivative;
+            forwardDerivative *
+                (advanced_.useGummelPoonBaseCharge ? ibForward : forwardBaseSlope) +
+            forwardLeakageDerivative;
         const double baseDerivativeBc =
-            reverseDerivative * reverseBaseSlope + reverseLeakageDerivative;
-        const double dTransport[3] = {
-            forwardDerivative - reverseDerivative / alphaReverse_,
-            reverseDerivative / alphaReverse_,
-            -forwardDerivative
-        };
+            reverseDerivative *
+                (advanced_.useGummelPoonBaseCharge ? ibReverse : reverseBaseSlope) +
+            reverseLeakageDerivative;
 
         // Rows/columns are ordered base, collector, emitter.
         result.conductance[0][0] = baseDerivativeBe + baseDerivativeBc;
@@ -277,17 +372,14 @@ public:
 
         for (int column = 0; column < 3; ++column)
         {
-            const double dVce = column == 1 ? 1.0 : (column == 2 ? -1.0 : 0.0);
             const double leakageBcSlope = column == 0
                 ? reverseLeakageDerivative
                 : (column == 1 ? -reverseLeakageDerivative : 0.0);
             result.conductance[1][column] =
-                dTransport[column] * earlyFactor +
-                transport * earlySlope * dVce - leakageBcSlope;
+                collectorDerivative[column] - leakageBcSlope;
             result.conductance[2][column] =
                 -result.conductance[0][column] - result.conductance[1][column];
         }
-
         const auto qbe = depletionCharge(vbe,
             advanced_.baseEmitterCapacitanceFarads,
             advanced_.baseEmitterPotentialVolts,
