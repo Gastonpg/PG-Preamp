@@ -93,6 +93,27 @@ The same regression harness measures A Stage THD of approximately 0.00249% at 5 
 
 A possible future device reference is the onsemi BC550C low-noise NPN. Its datasheet specifies a C gain grade of 420–800 at 2 mA / 5 V, a typical 1.2 dB noise figure at 200 µA / 5 V / 1 kHz with 2 kΩ source resistance, a typical 300 MHz transition frequency at 10 mA, and typical input/output capacitance data. Those are sparse datasheet points, not a complete Gummel-Poon parameter set; therefore the current profile does not claim to be a BC550C model. Device fitting still needs a manufacturer SPICE card or measured transistor curves and should be validated at the actual stage bias current.
 
+### Alternate BC550C reference, Gummel-Poon terms and transistor noise
+
+`PgAStageBc550CReference` is an alternate device profile based on the BC550C model published in the [Cordell Audio SPICE library](https://www.cordellaudio.com/book/spice_models.shtml). Cordell describes its small-signal BJT models as adjusted against datasheet information and DC measurements of real samples, including better base-resistance estimates for noise simulations. The profile is a sample-derived reference, not a claim that all commercial BC550C parts share one exact model.
+
+The model includes the Cordell DC anchors (IS 45 fA, BF 689, BR 12.2, VAF 162 V, VAR 120 V, RB 167 ohms, RC 1 ohm, RE 0.04 ohm), junction capacitances, transit times, leakage branches, emission coefficients, temperature coefficients and roll-off knees. The compact engine adds an optional static Gummel-Poon base-charge expression, with its analytic conductance Jacobian checked against central finite differences. At the datasheet 2 mA / 5 V gain test point, its predicted hFE is 521.9, within the BC550C C-grade 420–800 datasheet interval.
+
+In the PG common-emitter topology, the simulated BC550C profile biases at 1.173 mA collector current and 5.309 V VCE at 300.15 K. At the nominal +18 dB input envelope it remains forward-active with a 1.136 mA minimum collector current. Tests also cover 273.15 K, 300.15 K and 343.15 K, plus all 16 combinations of ±5% divider/collector/emitter resistor values; worst-case full-cycle margins are 0.950 mA minimum collector current and 3.586 V minimum VCE.
+
+The alternate profile's 1 kHz THD is 0.00217% at 5 mV peak and 0.01703% at 40 mV peak. Its 20 Hz–20 kHz small-signal response has a maximum deviation of 0.01578 dB from 1 kHz. The 17 kHz / 40 mV folded H2–H5 ratio is 0.01658% at 48 kHz versus 0.01626% in the 192 kHz reference run. These are deterministic model tests only. **The active plugin still uses PG A Stage M1**, which remains the established listening reference until an A/B audition justifies promoting another profile.
+
+The NPN primitive also reports first-order noise-source densities from its bias operating point. For the BC550C profile at 300.15 K, the tested values are:
+- base-resistance Johnson noise: 1.664 nV/√Hz;
+- collector-resistance Johnson noise: 0.129 nV/√Hz;
+- emitter-resistance Johnson noise: 0.0257 nV/√Hz;
+- base-current shot noise: 0.876 pA/√Hz;
+- collector-current shot noise: 19.39 pA/√Hz.
+
+This is a local source-noise inventory, not a complete equivalent-input-noise result. The present helper assumes uncorrelated first-order sources and does not calculate their transfer through the stage, source/load impedance contribution, transistor excess noise, or full noise correlations. **No noise source is injected into audio.** A complete noise budget and any decision to render noise remain separate validation work.
+
+The compact BJT model is not the complete ngspice Gummel-Poon implementation. It still lacks the dynamic XTF/VTF/ITF excess-phase terms, IRB/RBM base-resistance modulation, full collector-base charge partition and self-heating. Those are future engineering items rather than approximated claims.
+
 ### Fixed loaded Iron transformer
 
 `FixedMagneticTransformerStage` is the real-time reduced-order transformer used by the Iron switch. It models a source resistance, primary winding resistance and leakage inductance, a magnetizing field from Ampere's law, a secondary winding with resistance/leakage, and a finite load.
@@ -162,9 +183,9 @@ The processor supports native VST3 32-bit and 64-bit audio buses. The 64-bit pat
 ## Remaining milestones
 
 1. Iterate PG Iron M1's voicing against level-matched listening tests on real vocal and instrument material; use physical B-H, impedance and frequency-response measurements later if a specific hardware unit becomes available.
-2. Add winding thermal noise and more detailed core-loss behavior only when the chosen PG noise target and a trustworthy measurement dataset justify it.
+2. Add winding thermal noise and more detailed core-loss behavior only when the chosen PG noise target and a trustworthy measurement dataset justify it; transistor source-noise densities are currently analytical diagnostics only and are not injected into audio.
 3. Decide whether to add the separate 31267 line-input transformer and LO1166 output-transformer models as additional modes.
-4. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
+4. Complete the BC550C dynamic high-current transit-time terms and base-resistance modulation, then build a transfer-weighted equivalent-input-noise budget for all active devices/resistors; only promote the alternate profile after level-matched listening tests.
 5. Profile real-time CPU cost, oversampling requirements, denormal behavior and stability on the target PC at 44.1/48/96/192 kHz.
 6. Refine the temporary rack editor and add a properly metered output display.
 
