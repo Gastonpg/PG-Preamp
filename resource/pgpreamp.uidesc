@@ -26,11 +26,11 @@
         <view class="CView" origin="680, 2" size="172, 62" bitmap="GeminiLogo"
               mouse-enabled="false" transparent="true"/>
 
-        <view class="CTextLabel" origin="174, 145" size="150" height="20"
+        <view class="CTextLabel" origin="174, 145" size="150, 20"
               title="INPUT GAIN" font="~ NormalFont" font-antialias="true"
               font-color="Text" text-alignment="center"
               style-no-frame="true" transparent="true"/>
-        <view class="CTextLabel" origin="484, 145" size="150" height="20"
+        <view class="CTextLabel" origin="484, 145" size="150, 20"
               title="OUTPUT LEVEL" font="~ NormalFont" font-antialias="true"
               font-color="Text" text-alignment="center"
               style-no-frame="true" transparent="true"/>
@@ -71,11 +71,11 @@
               title="−12 dB  …  +18 dB" font="~ NormalFontSmall"
               font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
-        <view class="CTextLabel" origin="484, 328" size="150" height="18"
+        <view class="CTextLabel" origin="484, 328" size="150, 18"
               title="−12 dB  …  +12 dB" font="~ NormalFontSmall"
               font-antialias="true" font-color="MutedText"
               text-alignment="center" style-no-frame="true" transparent="true"/>
-        <view class="CTextLabel" origin="42, 385" size="500" height="16"
+        <view class="CTextLabel" origin="42, 385" size="500, 16"
               title="PG AUDIO  ·  CIRCUIT ENGINE IN DEVELOPMENT"
               font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
               text-alignment="left" style-no-frame="true" transparent="true"/>
