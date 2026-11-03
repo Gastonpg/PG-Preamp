@@ -77,7 +77,7 @@ It uses dynamically sized matrices and performs nonlinear iterations. It is a re
 
 At prepare/reset time it solves the DC operating point and initializes the coupling-capacitor voltages from that solution. This prevents a false output transient from an inconsistent initial bias. The topology is a test fixture and a first audible A Stage, not the final PG Preamp schematic.
 
-At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.14469x small-signal voltage gain. The processor uses this exact measured value as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
+At 48 kHz and 1 kHz, the current provisional transistor/topology setup measures approximately 4.14469x small-signal voltage gain. The processor uses this exact measured value as makeup gain on the A Stage dry path, so disabling the colour stage does not cause the roughly 12.3 dB drop heard in the first build. The fixed common-emitter stage is inverting; its level-matched dry reference uses the same polarity so the 5 ms crossfade does not pass through a polarity cancellation. A regression test checks that the actual plugin transistor stage has negative input/output correlation. This is a UI/processor level-matching choice, not a physical gain claim for a disconnected transistor stage.
 
 ### Fixed loaded Iron transformer
 
@@ -99,9 +99,10 @@ The core model now uses a smooth stateful branch-memory variable and continuous 
 At 48 kHz, with a 5 mV, 1 kHz sine, the current VTB9045-reference configuration measures:
 - small-signal gain: 1.2545x before processor level matching;
 - low-level THD: 5.94e-7 ratio (approximately 0.000059%);
-- largest of the selected non-harmonic DFT bins: 6.52e-7 of the fundamental (approximately -123.7 dBc).
+- largest of the selected non-harmonic DFT bins: 6.52e-7 of the fundamental (approximately -123.7 dBc);
+- integrated residual across all non-harmonic DFT bins: 8.43e-5 of the fundamental (approximately -81.5 dBc).
 
-Those figures are deterministic synthetic single-tone tests of this macro-model. They are not measurements of a physical VTB9045 or Marinair 10468 and do not quantify noise from a real microphone/recording. The model does not inject a random white-noise source. Transformer thermal-noise contribution is not yet modelled; audible noise already present in an input recording can still pass through the signal path.
+Those figures are deterministic synthetic single-tone tests of this macro-model. The integrated residual is a spectral artifact measurement, not a direct listening or physical noise-floor measurement. They are not measurements of a physical VTB9045 or Marinair 10468 and do not quantify noise from a real microphone/recording. The model does not inject a random white-noise source. Transformer thermal-noise contribution is not yet modelled; audible noise already present in an input recording can still pass through the signal path.
 
 The transformer is prepared outside the audio callback. Its per-sample method uses fixed scalar state and no dynamic allocation or general-purpose MNA solver.
 
