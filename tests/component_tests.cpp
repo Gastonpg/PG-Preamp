@@ -1266,7 +1266,7 @@ int main()
                                            double& oneKhzGain,
                                            double& maximumDeviationDb)
     {
-        std::array<double, stagePeriods.size()> frequencyGains{};
+        std::array<double, 8> frequencyGains{};
         oneKhzGain = 0.0;
         maximumDeviationDb = 0.0;
         for (std::size_t frequencyIndex = 0;
