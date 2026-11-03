@@ -585,6 +585,31 @@ int main()
     if (!(std::abs(nonlinearTransformerSample.coreFluxDensityTesla) > 0.5))
         return 71;
 
+    // The processor's provisional transistor model must start from its solved
+    // DC bias. Silence immediately after prepare must not produce an output pop.
+    EbersMollNpn pluginDefaultTransistor;
+    pluginDefaultTransistor.prepare(1.0e-14, 120.0, 2.0, 300.15);
+    pluginDefaultTransistor.setAdvancedParameters(detailedParameters);
+    FixedCommonEmitterStage startupStage;
+    if (!startupStage.prepare(48000.0, FixedCommonEmitterStage::Parameters{},
+                              pluginDefaultTransistor))
+        return 83;
+
+    double startupSilencePeak = 0.0;
+    for (int sample = 0; sample < 256; ++sample)
+    {
+        FixedCommonEmitterStage::ProcessResult startupResult;
+        if (!startupStage.processSample(0.0f, startupResult))
+            return 84;
+        startupSilencePeak = std::max(
+            startupSilencePeak, std::abs(static_cast<double>(startupResult.output)));
+    }
+    if (startupSilencePeak > 1.0e-5)
+    {
+        std::cerr << "Startup silence transient: peak=" << startupSilencePeak << "\\n";
+        return 85;
+    }
+
     // Fixed-topology real-time candidate: same device model, fixed resistor
     // network and coupling-capacitor states, solved with stack-only arrays.
     FixedCommonEmitterStage realtimeStage;
