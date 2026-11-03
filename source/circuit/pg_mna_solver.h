@@ -152,7 +152,15 @@ public:
 
     void addNpn(Node base, Node collector, Node emitter, const EbersMollNpn& device)
     {
-        transistors_.push_back({base, collector, emitter, device});
+        Transistor element;
+        element.externalBase = base;
+        element.externalCollector = collector;
+        element.externalEmitter = emitter;
+        element.device = device;
+        element.base = makeInternalTerminal(base, device.baseResistanceOhms());
+        element.collector = makeInternalTerminal(collector, device.collectorResistanceOhms());
+        element.emitter = makeInternalTerminal(emitter, device.emitterResistanceOhms());
+        transistors_.push_back(element);
     }
 
     bool setInitialNodeVoltage(Node node, double voltage) noexcept
@@ -160,7 +168,18 @@ public:
         if (!validNode(node) || !std::isfinite(voltage))
             return false;
         if (node != ground)
+        {
             nodeVoltages_[static_cast<std::size_t>(node)] = voltage;
+            for (const auto& transistor : transistors_)
+            {
+                if (transistor.externalBase == node && transistor.base != node)
+                    nodeVoltages_[static_cast<std::size_t>(transistor.base)] = voltage;
+                if (transistor.externalCollector == node && transistor.collector != node)
+                    nodeVoltages_[static_cast<std::size_t>(transistor.collector)] = voltage;
+                if (transistor.externalEmitter == node && transistor.emitter != node)
+                    nodeVoltages_[static_cast<std::size_t>(transistor.emitter)] = voltage;
+            }
+        }
         return true;
     }
 
@@ -217,6 +236,23 @@ public:
                 ? lastVoltageSourceCurrents_[i] : 0.0;
         for (std::size_t i = 0; i < inductors_.size(); ++i)
             x[inductorOffset + i] = inductors_[i].previousCurrentAmps;
+
+        // Initialize internal transistor charge from the current voltage guess.
+        // This prevents an artificial impulse on the first operating-point step.
+        for (auto& transistor : transistors_)
+        {
+            if (!transistor.chargeStateInitialized)
+            {
+                const auto initial = transistor.device.evaluateWithDerivatives(
+                    valueAt(x, transistor.base),
+                    valueAt(x, transistor.collector),
+                    valueAt(x, transistor.emitter));
+                for (int terminal = 0; terminal < 3; ++terminal)
+                    transistor.previousCharge[terminal] =
+                        initial.terminalChargeCoulombs[terminal];
+                transistor.chargeStateInitialized = true;
+            }
+        }
 
         for (unsigned iteration = 0; iteration < maxIterations; ++iteration)
         {
@@ -291,6 +327,17 @@ public:
             capacitor.previousVoltage =
                 valueAt(x, capacitor.dielectricNode) - valueAt(x, capacitor.negative);
 
+        for (auto& transistor : transistors_)
+        {
+            const auto finalEvaluation = transistor.device.evaluateWithDerivatives(
+                valueAt(x, transistor.base),
+                valueAt(x, transistor.collector),
+                valueAt(x, transistor.emitter));
+            for (int terminal = 0; terminal < 3; ++terminal)
+                transistor.previousCharge[terminal] =
+                    finalEvaluation.terminalChargeCoulombs[terminal];
+        }
+
         return result;
     }
 
@@ -340,11 +387,28 @@ private:
     };
     struct Transistor
     {
-        Node base;
-        Node collector;
-        Node emitter;
+        Node externalBase = ground;
+        Node externalCollector = ground;
+        Node externalEmitter = ground;
+        Node base = ground;
+        Node collector = ground;
+        Node emitter = ground;
         EbersMollNpn device;
+        double previousCharge[3]{};
+        bool chargeStateInitialized = false;
     };
+
+    Node makeInternalTerminal(Node externalNode, double seriesResistance)
+    {
+        if (!std::isfinite(seriesResistance) || seriesResistance <= 0.0)
+            return externalNode;
+        const Node internalNode = createNode();
+        nodeVoltages_[static_cast<std::size_t>(internalNode)] =
+            externalNode == ground ? 0.0 :
+            nodeVoltages_[static_cast<std::size_t>(externalNode)];
+        addResistor(externalNode, internalNode, seriesResistance);
+        return internalNode;
+    }
 
     bool validNode(Node node) const noexcept
     {
@@ -523,12 +587,18 @@ private:
                 if (nodes[row] == ground)
                     continue;
                 const std::size_t r = static_cast<std::size_t>(nodes[row] - 1);
-                residual[r] += currents[row];
+                const double chargeCurrent =
+                    (evaluation.terminalChargeCoulombs[row] -
+                     transistor.previousCharge[row]) / dt;
+                residual[r] += currents[row] + chargeCurrent;
                 for (int column = 0; column < 3; ++column)
                 {
                     if (nodes[column] != ground)
-                        jacobian[r][static_cast<std::size_t>(nodes[column] - 1)] +=
-                            evaluation.conductance[row][column];
+                    {
+                        const std::size_t c = static_cast<std::size_t>(nodes[column] - 1);
+                        jacobian[r][c] += evaluation.conductance[row][column] +
+                                          evaluation.capacitance[row][column] / dt;
+                    }
                 }
             }
         }
