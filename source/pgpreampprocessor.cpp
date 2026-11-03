@@ -57,11 +57,20 @@ tresult PLUGIN_API PGPreampProcessor::setState(IBStream* state)
 
     bypass_ = bypassValue >= 0.5f;
     inputGainNormalized_ = std::clamp(static_cast<double>(inputValue), 0.0, 1.0);
-    outputGainNormalized_ = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
+    // State version 2 uses a symmetric -18 .. +18 dB Output range.
+    // Older sessions stored the previous -12 .. +12 dB normalized value;
+    // convert its actual dB value so existing projects retain their level.
+    float stateVersion = 1.0f;
+    const bool hasCurrentOutputRange =
+        streamer.readFloat(stateVersion) && stateVersion >= 2.0f;
+    const double storedOutput = std::clamp(static_cast<double>(outputValue), 0.0, 1.0);
+    outputGainNormalized_ = hasCurrentOutputRange
+        ? storedOutput
+        : ((-12.0 + 24.0 * storedOutput) + 18.0) / 36.0;
     inputGainTargetLinear_ =
         decibelsToLinear(-12.0 + 30.0 * inputGainNormalized_);
     outputGainTargetLinear_ =
-        decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
+        decibelsToLinear(-18.0 + 36.0 * outputGainNormalized_);
     inputGainCurrentLinear_ = inputGainTargetLinear_;
     outputGainCurrentLinear_ = outputGainTargetLinear_;
     aStageEnabled_ = aStageValue >= 0.5f;
@@ -85,7 +94,8 @@ tresult PLUGIN_API PGPreampProcessor::getState(IBStream* state)
         !streamer.writeFloat(static_cast<float>(inputGainNormalized_)) ||
         !streamer.writeFloat(static_cast<float>(outputGainNormalized_)) ||
         !streamer.writeFloat(aStageEnabled_ ? 1.0f : 0.0f) ||
-        !streamer.writeFloat(ironEnabled_ ? 1.0f : 0.0f))
+        !streamer.writeFloat(ironEnabled_ ? 1.0f : 0.0f) ||
+        !streamer.writeFloat(2.0f))
         return kResultFalse;
 
     return kResultOk;
@@ -204,7 +214,7 @@ void PGPreampProcessor::applyParameter(Vst::ParamID id, Vst::ParamValue value) n
         case kPGPreampOutputGainId:
             outputGainNormalized_ = value;
             outputGainTargetLinear_ =
-                decibelsToLinear(-12.0 + 24.0 * outputGainNormalized_);
+                decibelsToLinear(-18.0 + 36.0 * outputGainNormalized_);
             break;
         case kPGPreampAStageId:
             aStageEnabled_ = value >= 0.5;
