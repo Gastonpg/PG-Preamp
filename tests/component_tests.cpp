@@ -217,7 +217,11 @@ int main()
         expectedRcOutput += rcAlpha * (1.0 - expectedRcOutput);
     }
     if (!near(rcNetwork.nodeVoltage(rcOutput), expectedRcOutput, 1.0e-8))
+    {
+        std::cerr << "RC MNA mismatch: actual=" << rcNetwork.nodeVoltage(rcOutput)
+                  << " expected=" << expectedRcOutput << "\\n";
         return 32;
+    }
 
     // RL transient solved as a branch-current MNA unknown.
     MnaCircuit rlNetwork;
