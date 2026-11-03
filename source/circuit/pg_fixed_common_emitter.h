@@ -430,13 +430,35 @@ private:
 
     bool initializeBiasPoint() noexcept
     {
-        Vector candidate = {1.65, 1.65, 7.5, 7.5, 0.95, 0.95, 0.0};
+        // Start close to the divider/emitter-degenerated operating point.
+        // This is particularly important for high-IS devices at hot corners:
+        // a generic 0.7 V initial VBE can imply an enormous exponential current.
+        const double dividerResistance =
+            parameters_.baseFeedResistanceOhms +
+            parameters_.baseReturnResistanceOhms;
+        const double baseEstimate = parameters_.supplyVolts *
+            parameters_.baseReturnResistanceOhms / dividerResistance;
+        const double emitterEstimate = std::max(0.0, baseEstimate - 0.62);
+        const double collectorCurrentEstimate =
+            emitterEstimate / parameters_.emitterResistanceOhms;
+        const double collectorEstimate = std::clamp(
+            parameters_.supplyVolts -
+                collectorCurrentEstimate * parameters_.collectorResistanceOhms,
+            0.5, parameters_.supplyVolts - 0.5);
+        Vector candidate = {
+            baseEstimate, baseEstimate,
+            collectorEstimate, collectorEstimate,
+            emitterEstimate, emitterEstimate, 0.0
+        };
+
         bool converged = false;
         double residualNorm = std::numeric_limits<double>::infinity();
         unsigned iterations = 0;
 
-        // This runs only during prepare/reset, never in the audio callback.
-        constexpr unsigned maximumBiasIterations = 32;
+        // This damped Newton solve runs only during prepare/reset, never in
+        // the audio callback. Backtracking prevents an initially overdriven
+        // exponential junction from throwing the bias point outside its basin.
+        constexpr unsigned maximumBiasIterations = 64;
         for (; iterations < maximumBiasIterations; ++iterations)
         {
             Matrix jacobian{};
@@ -457,10 +479,36 @@ private:
             if (!solveLinearSystem(jacobian, delta))
                 break;
 
-            for (std::size_t i = 0; i < UnknownCount; ++i)
-                candidate[i] += delta[i];
+            bool accepted = false;
+            double stepScale = 1.0;
+            for (unsigned backtrack = 0; backtrack < 16; ++backtrack)
+            {
+                Vector trial = candidate;
+                for (std::size_t i = 0; i < UnknownCount; ++i)
+                    trial[i] += stepScale * delta[i];
+                if (!allFinite(trial))
+                {
+                    stepScale *= 0.5;
+                    continue;
+                }
 
-            if (!allFinite(candidate))
+                Matrix trialJacobian{};
+                Vector trialResidual{};
+                assembleBias(trial, trialJacobian, trialResidual);
+                const double trialNorm = maxAbs(trialResidual);
+                if (std::isfinite(trialNorm) &&
+                    (trialNorm < residualNorm ||
+                     trialNorm <= parameters_.residualToleranceAmps))
+                {
+                    candidate = trial;
+                    residualNorm = trialNorm;
+                    accepted = true;
+                    break;
+                }
+                stepScale *= 0.5;
+            }
+
+            if (!accepted)
                 break;
         }
 
