@@ -697,13 +697,25 @@ int main()
     const double transformerNonHarmonicSpur = std::max(
         spectralAmplitude(101),
         std::max(spectralAmplitude(137), spectralAmplitude(173)));
+    double transformerHarmonicPower = 0.0;
+    for (int harmonic = 2; harmonic <= 24; ++harmonic)
+    {
+        const double amplitude =
+            spectralAmplitude(90 * harmonic);
+        transformerHarmonicPower += amplitude * amplitude;
+    }
+    const double transformerLowLevelThd =
+        std::sqrt(transformerHarmonicPower) / transformerFundamental;
+
     if (!(transformerFundamental > 1.0e-6) ||
-        transformerNonHarmonicSpur > transformerFundamental * 1.0e-3)
+        transformerNonHarmonicSpur > transformerFundamental * 1.0e-3 ||
+        transformerLowLevelThd > 0.005)
         return 98;
 
     std::cout << "Iron 10468-equivalent reference: small-signal gain="
               << transformerGain << "x, non-harmonic spur="
-              << transformerNonHarmonicSpur / transformerFundamental << "\\n";
+              << transformerNonHarmonicSpur / transformerFundamental
+              << ", low-level THD=" << transformerLowLevelThd << "\\n";
     if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
         return 92;
 
