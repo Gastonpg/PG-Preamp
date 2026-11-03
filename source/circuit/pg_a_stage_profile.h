@@ -43,4 +43,59 @@ struct PgAStageProfileV1
     }
 };
 
+// Alternative reference-device fit using the Cordell BC550C SPICE model.
+// Cordell states that its small-signal models were adjusted to datasheet
+// information and DC measurements of physical samples; this is a published
+// sample-derived reference, not a universal guarantee for every BC550C bin.
+// It is deliberately kept separate from the currently auditioned PG A Stage M1.
+struct PgAStageBc550CReference
+{
+    inline static constexpr char profileName[] = "BC550C Cordell reference";
+    static constexpr double nominalTemperatureKelvin = 300.15;
+    static constexpr double nominalCurrentGain = 689.0;
+
+    static EbersMollNpn makeTransistor(
+        double temperatureKelvin = nominalTemperatureKelvin) noexcept
+    {
+        EbersMollNpn transistor;
+        // Cordell model: IS=45 fA, BF=689, BR=12.2, EG=1.2 eV,
+        // XTI=3 and XTB=1.65, at 300.15 K nominal temperature.
+        transistor.prepare(
+            45.0e-15, 689.0, 12.2, temperatureKelvin,
+            nominalTemperatureKelvin, 1.2, 3.0, 1.65);
+
+        BjtAdvancedParameters device;
+        device.forwardEarlyVoltage = 162.0;
+        device.reverseEarlyVoltage = 120.0;
+        device.baseResistanceOhms = 167.0;
+        device.collectorResistanceOhms = 1.0;
+        device.emitterResistanceOhms = 0.04;
+        device.baseEmitterCapacitanceFarads = 18.7e-12;
+        device.baseEmitterPotentialVolts = 0.75;
+        device.baseEmitterGradingCoefficient = 0.35;
+        device.baseCollectorCapacitanceFarads = 6.2e-12;
+        device.baseCollectorPotentialVolts = 0.4;
+        device.baseCollectorGradingCoefficient = 0.25;
+        device.forwardTransitTimeSeconds = 595.0e-12;
+        device.reverseTransitTimeSeconds = 10.0e-9;
+        device.forwardEmissionCoefficient = 0.9965;
+        device.reverseEmissionCoefficient = 1.0;
+        device.baseEmitterLeakageSaturationCurrentAmps = 4.6e-12;
+        device.baseEmitterLeakageEmissionCoefficient = 2.0;
+        device.baseCollectorLeakageSaturationCurrentAmps = 5.0e-15;
+        device.baseCollectorLeakageEmissionCoefficient = 0.996;
+        device.forwardBetaRollOffCurrentAmps = 0.09;
+        device.reverseBetaRollOffCurrentAmps = 0.34;
+        device.betaRollOffExponent = 0.5;
+        device.useGummelPoonBaseCharge = true;
+        transistor.setAdvancedParameters(device);
+        return transistor;
+    }
+
+    static FixedCommonEmitterStage::Parameters makeStageParameters() noexcept
+    {
+        return FixedCommonEmitterStage::Parameters{};
+    }
+};
+
 } // namespace PGAudio::Circuit
