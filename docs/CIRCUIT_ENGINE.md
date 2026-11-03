@@ -137,7 +137,7 @@ The signal path is:
 4. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit. When disabled, its dry path uses the measured 4.14469x small-signal gain for level matching.
 5. **Output Gain** maps the circuit output back to the host audio range.
 
-The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled by default; Iron is disabled by default. All five control values are saved in the processor state. Older three-value states remain readable and default to A Stage enabled / Iron disabled.
+The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled by default; Iron is disabled by default. Output now spans -18 to +18 dB, centered at 0 dB, so it can compensate the full +18 dB Input range. State version 2 records the new mapping; older three- and five-value sessions are migrated by preserving their previous Output dB value, and older states still default to A Stage enabled / Iron disabled.
 
 Block switches crossfade over 5 ms. The circuit blocks continue running internally while their audible path is disabled, preserving the state so toggling them does not connect a cold model mid-waveform. Input and Output gain changes are also smoothed over 5 ms. VST3 parameter events are consumed at their sample offsets rather than taking only the final value in the processing block.
 
