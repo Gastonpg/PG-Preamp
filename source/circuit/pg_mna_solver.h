@@ -75,7 +75,14 @@ public:
 
         // Internal dielectric node models terminal -- ESR -- (C || leakage).
         if (element.esrOhms > 0.0)
+        {
             element.dielectricNode = createNode();
+            // Seed the hidden dielectric node so the initial capacitor
+            // voltage is consistent with the caller's node-voltage guesses.
+            nodeVoltages_[static_cast<std::size_t>(element.dielectricNode)] =
+                (negative == ground ? 0.0 : nodeVoltages_[static_cast<std::size_t>(negative)]) +
+                element.initialVoltage;
+        }
         else
             element.dielectricNode = positive;
 
