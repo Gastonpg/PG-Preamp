@@ -2,7 +2,7 @@
 
 ## Development principle
 
-Build and validate circuit elements individually before connecting them into a complete signal path. Every element needs a documented physical interpretation, SI-unit parameters where practical, deterministic state/reset behavior, response and stability tests, and measured CPU cost before real-time integration.
+Build and validate circuit elements individually before connecting them into a complete signal path. Every element needs a documented physical interpretation, SI-unit parameters where practical, deterministic state/reset behavior, response and stability tests, and measured CPU cost before a production release.
 
 A component is not accepted merely because it sounds pleasing. Its behavior must be explainable and testable.
 
@@ -34,7 +34,7 @@ The component-level model tracks winding current with series winding resistance.
 
 M = k * sqrt(Lp * Ls), |k| < 1
 
-### Magnetic core and transformer
+### Detailed magnetic core and transformer reference
 
 `PreisachCore` uses a discrete weighted ensemble of magnetic relay domains with separate upper/lower switching fields. The domain states preserve magnetic history, allowing remanence, coercive switching and minor-loop behavior. Its flux-density calculation includes the vacuum-field term plus the domain magnetization contribution.
 
@@ -48,9 +48,9 @@ and provides a separate rate-dependent eddy-loss proxy proportional to (dB/dt)^2
 
 v = Rw*i + L_leak*(di/dt) + N*A*(dB/dt)
 
-This current-driven transformer block is a nonlinear two-port component model for offline validation. It is not yet connected to the generic MNA solver or the plugin signal path.
+This detailed current-driven two-port is retained as an offline reference model. Its discrete relay transitions and eddy-loss proxy are not directly used in the real-time plugin path.
 
-### NPN transistor
+## NPN transistor
 
 The extended NPN model retains Ebers-Moll transport currents and adds a compact Gummel-Poon-style set of effects:
 
@@ -71,15 +71,25 @@ The MNA solver stamps the internal series resistors and integrates terminal char
 
 It uses dynamically sized matrices and performs nonlinear iterations. It is a reference/test solver and must not be called from the audio callback.
 
-### Fixed-topology real-time candidate
+### Fixed common-emitter A Stage
 
 `FixedCommonEmitterStage` implements one explicitly fixed common-emitter topology using a 7-unknown Newton system and stack-allocated arrays. Its audio-sample method uses no dynamic containers, heap allocation, locks or general-purpose MNA assembly. It includes the transistor's internal series resistances and dynamic junction charge, plus input/output coupling-capacitor history.
 
-This stage is an optimization candidate and a circuit validation fixture. It is not yet the final PG Preamp schematic, and it does not include the nonlinear transformer in its audio path.
+At prepare/reset time it solves the DC operating point and initializes the coupling-capacitor voltages from that solution. This prevents a false output transient from an inconsistent initial bias. The topology is a test fixture and a first audible A Stage, not the final PG Preamp schematic.
+
+### Fixed loaded Iron transformer
+
+`FixedMagneticTransformerStage` is the real-time reduced-order transformer used by the Iron switch. It models a source resistance, primary winding resistance and leakage inductance, a magnetizing field from Ampere's law, a secondary winding with resistance/leakage, and a finite load.
+
+For a candidate core field H, the solver advances a smooth stateful saturation/hysteresis macro-model, computes the core flux-density change, and derives primary/secondary induced voltages using Faraday's law. It solves the loaded primary/secondary current relation with a fixed-size scalar Newton iteration. The core law contains a reversible-permeability knee, saturation and a direction-dependent coercive offset with finite magnetic relaxation. Its state is continuous between samples, avoiding the flux jumps that would result from routing discrete relay-domain steps straight into audio.
+
+This is a compact real-time macromodel, not a full Preisach implementation or a calibrated model of a named transformer. The winding, core and relaxation defaults are provisional. The current real-time path does not yet include a calibrated eddy-current loss branch, interwinding capacitance, distributed winding capacitance or measured parasitics.
+
+The fixed transformer is prepared outside the audio callback. Its per-sample method uses fixed scalar state and no dynamic allocation or general-purpose MNA solver.
 
 ## Verified test circuits
 
-The automated component suite currently checks:
+The automated component/network suite checks:
 
 1. R, L and C equations, resistor temperature coefficients and thermal-noise statistics.
 2. RC and RL network transients against their backward-Euler recurrences.
@@ -88,30 +98,34 @@ The automated component suite currently checks:
 5. A Preisach-style core's saturation, remanence, hysteresis work and non-negative eddy-loss proxy.
 6. A current-driven nonlinear transformer: small-signal turns ratio, core saturation and remanent flux.
 7. A 12 V common-emitter circuit with bias divider, collector/emitter resistors and nonlinear transistor, solving its DC operating point.
-8. The same class of stage with AC coupling and load, verifying gain and phase inversion in generic MNA.
-9. The fixed-topology stage, verifying gain/phase and comparing its measured gain with the generic MNA reference.
+8. The common-emitter stage with AC coupling and load, verifying gain and phase inversion in generic MNA.
+9. The fixed common-emitter stage, verifying gain/phase and comparing its measured gain with the generic MNA reference.
+10. The fixed loaded transformer: zero-signal startup, loaded audio-band transfer, bounded high-level core flux and 44.1/48/96/192 kHz operation.
 
 The amplifier fixtures are engineering test topologies. They are not claims of an exact 1073 circuit.
 
-## Next physical-model milestones
-
-1. Calibrate transistor model parameters against chosen device datasheets or SPICE reference sweeps, including temperature and bias-dependent effects.
-2. Calibrate magnetic core hysteresis and losses against a selected transformer/core dataset, and add winding capacitance/interwinding parasitics.
-3. Connect the transformer and fixed gain-stage models in a fixed-topology signal path; compare the result against the generic MNA reference and measured frequency/transient responses.
-4. Add explicit input/headroom and output controls, then integrate the validated topology into the VST3 processor.
-5. Measure CPU cost, oversampling needs, denormal behavior and stability at 44.1/48/96/192 kHz before release.
-
-The component and model libraries remain independent of the VST3 wrapper so validated models can later be reused by PG Optical Compressor.
-
-
 ## Experimental VST3 integration
 
-The experimental Windows VST3 currently uses `FixedCommonEmitterStage`, one independent instance per stereo channel. The host exposes Bypass, Input and Output controls. Input ranges from -12 to +18 dB and Output from -12 to +12 dB; both default to 0 dB. These parameters are serialized in the processor state and restored into the edit controller, including the standard VST3 bypass-persistence behavior.
+The experimental Windows x64 VST3 uses one independent A Stage and Iron transformer instance per stereo channel.
 
-The DSP signal is scaled into the stage's internal voltage range, processed through the transistor circuit and scaled back to the host's floating-point audio range. The current stage uses provisional transistor parameters selected for stable engineering tests. They are not calibrated to a particular transistor datasheet or measured hardware.
+The signal path is:
 
-Important scope boundary: only the fixed common-emitter stage currently processes plugin audio. The magnetic transformer / Preisach core block is separately implemented and tested but is not yet in the VST3 signal path. The plugin is therefore an audible experimental circuit stage, not a completed hardware emulation or final PG Preamp schematic.
+1. Host audio is scaled to the circuit's internal voltage range and adjusted by Input Gain.
+2. **Iron**, when enabled, passes the signal through the loaded magnetic input-transformer model.
+3. **A Stage**, when enabled, passes the signal through the fixed common-emitter transistor circuit.
+4. Output Gain maps the circuit output back to the host audio range.
 
-The generic MNA solver remains an offline reference tool. The fixed stage uses a fixed-size, stack-only solve and no dynamic allocation in its per-sample method. Automation is currently read at the processing-block boundary; sample-offset-accurate parameter ramps remain future work.
+The editor exposes Bypass, Input, Output, A Stage and Iron. A Stage is enabled by default; Iron is disabled by default. All five control values are saved in the processor state. Older three-value states remain readable and default to A Stage enabled / Iron disabled.
 
-Latest successful validation: Windows x64 build, 51 component/network tests and Steinberg VST3 validator all passed in [GitHub Actions run 41570556094](https://github.com/Gastonpg/PG-Preamp/actions/runs/41570556094).
+The processor supports 32-bit audio; 64-bit processing is not implemented. Parameters are currently read at the processing-block boundary, so sample-offset-accurate automation remains future work. The Steinberg VST3 validator reports 47 passed tests and 0 failed tests on the current build. The component/network test executable also passes on Linux and Windows.
+
+## Remaining milestones
+
+1. Calibrate the transistor model against a selected device datasheet or measured/SPICE reference, including temperature and bias-dependent effects.
+2. Select and characterize an input transformer; calibrate turns, winding resistance, leakage, magnetizing inductance, B-H response and losses.
+3. Add an explicit calibrated eddy-current/core-loss branch and winding/interwinding capacitances when supported by data.
+4. Implement sample-offset-accurate automation and add transition smoothing where parameter changes alter circuit topology.
+5. Profile real-time CPU cost, oversampling requirements, denormal behavior and stability on the target PC at 44.1/48/96/192 kHz.
+6. Refine the temporary rack editor and add a properly metered output display.
+
+The component and model libraries remain independent of the VST3 wrapper so validated parts can later be reused by PG Optical Compressor.
