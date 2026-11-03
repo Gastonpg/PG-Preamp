@@ -43,9 +43,9 @@ The fixed common-emitter test circuit measures about 4.14469x small-signal volta
 - Parameter changes are consumed at their VST3 sample offsets.
 - The fixed common-emitter stage uses a fixed-size Newton solve and stack arrays; it does not allocate from the heap or call the general MNA solver in the callback.
 - The transformer uses a fixed-size scalar solve and fixed state; it does not allocate from the heap.
-- The plugin processes 32-bit audio; 64-bit VST3 processing is not implemented.
+- The plugin supports native VST3 32-bit and 64-bit audio buses. Both paths use the same sample-offset automation and double-precision circuit state; the 32-bit host path narrows only when writing its float output buffer.
 - CPU cost still needs profiling on the target PC.
-- A Stage M1 bias and full-cycle collector conduction are regression-tested at the nominal maximum Input drive. Its transistor model still needs device-specific fitting; a low-noise BC550C is a possible reference candidate, not the current asserted device.
+- A Stage M1 bias and full-cycle collector conduction are regression-tested at the nominal maximum Input drive. The generic NPN primitive now has optional base-emitter/base-collector leakage and high-current beta roll-off terms; those additions remain disabled in M1 pending a device-specific fit. A low-noise BC550C is a possible reference candidate, not the current asserted device.
 - Iron core parameters remain PG macro-model choices and should be iterated against listening tests and any future physical reference measurements.
 
 ## Build and download
