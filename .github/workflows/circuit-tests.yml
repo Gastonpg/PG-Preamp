@@ -1,0 +1,35 @@
+name: PG Circuit Engine Tests
+
+on:
+  push:
+    paths:
+      - "source/circuit/**"
+      - "tests/component_tests.cpp"
+      - ".github/workflows/circuit-tests.yml"
+  pull_request:
+    paths:
+      - "source/circuit/**"
+      - "tests/component_tests.cpp"
+      - ".github/workflows/circuit-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  component-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure compiler
+        run: |
+          g++ --version
+          cmake --version
+
+      - name: Build component and network tests
+        run: g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Isource tests/component_tests.cpp -o pg_component_tests
+
+      - name: Run component and network tests
+        run: ./pg_component_tests
