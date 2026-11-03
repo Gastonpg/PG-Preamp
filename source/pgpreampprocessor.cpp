@@ -1,5 +1,6 @@
 #include "pgpreampprocessor.h"
 #include "pgpreampcids.h"
+#include "circuit/pg_iron_calibration.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "base/source/fstreamer.h"
 
@@ -12,7 +13,8 @@ namespace Steinberg {
 
 namespace {
 constexpr double kAStageReferenceGain = 4.14469;
-constexpr double kIronReferenceGain = 1.2545;
+constexpr double kIronReferenceGain =
+    PGAudio::Circuit::PgIronCalibrationV1::smallSignalReferenceGain;
 constexpr double kInputVoltsPerFullScale = 0.005;
 constexpr double kOutputFullScalePerVolt = 40.0;
 constexpr double kSwitchSmoothingSeconds = 0.005;
@@ -143,34 +145,11 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
         }
     }
 
-    // Iron is anchored to the published 10468 microphone-input transformer
-    // reference data and the Carnhill VTB9045 replacement configuration:
-    // 1:2 turns ratio, 300-ohm primary / 1.2-kohm secondary, with parallel
-    // primary and secondary coils. Their published coil DCR is 24+24 ohms
-    // primary and 130+130 ohms secondary, which becomes 12 / 65 ohms in
-    // parallel. The absolute turns and core geometry below are effective
-    // macro-model parameters because the original Marinair internals are not
-    // publicly specified. They remain provisional pending measurements.
-    PGAudio::Circuit::FixedMagneticTransformerStage::Parameters ironParameters;
-    ironParameters.saturationFluxDensityTesla = 0.8;
-    ironParameters.coreAreaSquareMeters = 1.0e-4;
-    ironParameters.magneticPathLengthMeters = 0.08;
-    ironParameters.relativePermeability = 16000.0;
-    ironParameters.coerciveFieldAmpsPerMeter = 1.0e-6;
-    ironParameters.magneticRelaxationSeconds = 1.0e-6;
-    ironParameters.branchMemoryRelaxationSeconds = 1.0e-3;
-    ironParameters.branchTransitionFieldAmpsPerMeter = 1.0e-5;
-    ironParameters.primaryTurns = 1000.0;
-    ironParameters.secondaryTurns = 2000.0;
-    ironParameters.sourceResistanceOhms = 150.0;
-    ironParameters.primaryWindingResistanceOhms = 12.0;
-    ironParameters.secondaryWindingResistanceOhms = 65.0;
-    // Small effective leakage values maintain the published wide-band
-    // response target; leakage remains a provisional parameter, not a
-    // claimed measurement of the original 10468.
-    ironParameters.primaryLeakageInductanceHenries = 1.0e-5;
-    ironParameters.secondaryLeakageInductanceHenries = 1.0e-5;
-    ironParameters.loadResistanceOhms = 1200.0;
+    // PG Iron M1 is our own voicing informed by public 10468-role
+    // replacement data; its magnetic macro-parameters remain explicit
+    // in one shared profile and are not presented as original Marinair data.
+    auto ironParameters =
+        PGAudio::Circuit::PgIronCalibrationV1::makeParameters();
 
     transformersReady_ = true;
     for (auto& transformer : transformers_)
