@@ -812,14 +812,22 @@ int main()
     const std::array<int, 8> transformerPeriods = {
         24000, 12000, 4800, 2400, 240, 24, 12, 4
     };
+    // Sowter's published 10468 replacement response condition is 1 kohm
+    // source / 600 ohm load, so use those source/load values for this sweep.
+    auto transformerFrequencyParameters = transformerParameters;
+    transformerFrequencyParameters.sourceResistanceOhms = 1000.0;
+    transformerFrequencyParameters.loadResistanceOhms = 600.0;
+    std::array<double, transformerPeriods.size()> transformerFrequencyGains{};
     double transformerOneKhzGain = 0.0;
+    double maximumTransformerResponseDeviationDb = 0.0;
     for (std::size_t frequencyIndex = 0;
          frequencyIndex < transformerPeriods.size(); ++frequencyIndex)
     {
         const int period = transformerPeriods[frequencyIndex];
         const double frequency = transformerSweepRate / period;
         FixedMagneticTransformerStage sweepTransformer;
-        if (!sweepTransformer.prepare(transformerSweepRate, transformerParameters))
+        if (!sweepTransformer.prepare(
+                transformerSweepRate, transformerFrequencyParameters))
             return 100;
 
         const int settleSamples = period * 8;
@@ -846,21 +854,35 @@ int main()
         }
 
         const double gain = std::sqrt(outputEnergy / inputEnergy);
+        transformerFrequencyGains[frequencyIndex] = gain;
         if (frequencyIndex == 4)
             transformerOneKhzGain = gain;
         if (!std::isfinite(gain) || !(gain > 0.0))
             return 103;
+    }
 
-        const double deviationDb = 20.0 * std::log10(gain / 1.2545);
+    if (!(transformerOneKhzGain > 0.0) ||
+        !std::isfinite(transformerOneKhzGain))
+        return 105;
+    for (std::size_t frequencyIndex = 0;
+         frequencyIndex < transformerFrequencyGains.size(); ++frequencyIndex)
+    {
+        const double frequency =
+            transformerSweepRate / transformerPeriods[frequencyIndex];
+        const double deviationDb = 20.0 * std::log10(
+            transformerFrequencyGains[frequencyIndex] / transformerOneKhzGain);
+        maximumTransformerResponseDeviationDb = std::max(
+            maximumTransformerResponseDeviationDb, std::abs(deviationDb));
         if (std::abs(deviationDb) > 0.5)
         {
             std::cerr << "Iron response at " << frequency << " Hz deviated "
-                      << deviationDb << " dB from the 1.2545x reference\\n";
+                      << deviationDb << " dB from its 1 kHz reference\\n";
             return 104;
         }
     }
-    if (!(transformerOneKhzGain > 1.20 && transformerOneKhzGain < 1.30))
-        return 105;
+    std::cout << "Iron frequency-response sweep: 1 kHz reference gain="
+              << transformerOneKhzGain << "x, max deviation="
+              << maximumTransformerResponseDeviationDb << " dB\\n";
 
     // A deliberately high-level, low-frequency drive exercises the nonlinear
     // core region. The reduced-order core must remain finite and bounded.
