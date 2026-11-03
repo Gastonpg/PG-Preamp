@@ -1,6 +1,7 @@
 #include "pgpreampprocessor.h"
 #include "pgpreampcids.h"
 #include "circuit/pg_iron_calibration.h"
+#include "circuit/pg_a_stage_profile.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "base/source/fstreamer.h"
 
@@ -12,7 +13,8 @@
 namespace Steinberg {
 
 namespace {
-constexpr double kAStageReferenceGain = 4.14469;
+constexpr double kAStageReferenceGain =
+    PGAudio::Circuit::PgAStageProfileV1::smallSignalReferenceGain;
 constexpr double kIronReferenceGain =
     PGAudio::Circuit::PgIronCalibrationV1::smallSignalReferenceGain;
 constexpr double kInputVoltsPerFullScale = 0.005;
@@ -117,24 +119,11 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
     inputGainCurrentLinear_ = inputGainTargetLinear_;
     outputGainCurrentLinear_ = outputGainTargetLinear_;
 
-    PGAudio::Circuit::EbersMollNpn transistor;
-    transistor.prepare(1.0e-14, 120.0, 2.0, 300.15);
+    auto transistor =
+        PGAudio::Circuit::PgAStageProfileV1::makeTransistor();
+    auto stageParameters =
+        PGAudio::Circuit::PgAStageProfileV1::makeStageParameters();
 
-    // Provisional generic device parameters. They are intentionally not
-    // described as a calibrated BC184C or an exact commercial preamp device.
-    PGAudio::Circuit::BjtAdvancedParameters deviceParameters;
-    deviceParameters.forwardEarlyVoltage = 85.0;
-    deviceParameters.reverseEarlyVoltage = 45.0;
-    deviceParameters.baseResistanceOhms = 120.0;
-    deviceParameters.collectorResistanceOhms = 4.0;
-    deviceParameters.emitterResistanceOhms = 1.5;
-    deviceParameters.baseEmitterCapacitanceFarads = 22.0e-12;
-    deviceParameters.baseCollectorCapacitanceFarads = 7.0e-12;
-    deviceParameters.forwardTransitTimeSeconds = 0.35e-9;
-    deviceParameters.reverseTransitTimeSeconds = 2.0e-9;
-    transistor.setAdvancedParameters(deviceParameters);
-
-    PGAudio::Circuit::FixedCommonEmitterStage::Parameters stageParameters;
     stagesReady_ = true;
     for (auto& stage : stages_)
     {
