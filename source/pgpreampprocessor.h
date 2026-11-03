@@ -35,6 +35,10 @@ private:
 
     double inputGainNormalized_ = 0.4;
     double outputGainNormalized_ = 0.5;
+    double inputGainTargetLinear_ = 1.0;
+    double outputGainTargetLinear_ = 1.0;
+    double inputGainCurrentLinear_ = 1.0;
+    double outputGainCurrentLinear_ = 1.0;
     double mixSmoothingCoefficient_ = 1.0;
     double aStageMix_ = 1.0;
     double ironMix_ = 0.0;
