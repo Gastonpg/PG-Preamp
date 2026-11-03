@@ -5,8 +5,8 @@
 
 namespace PGAudio::Circuit {
 
-// Linear resistor plus its Johnson-Nyquist equivalent series noise.
-// Noise is explicit: constructing a resistor never adds hiss implicitly.
+// Linear resistor with optional temperature coefficients and Johnson-Nyquist
+// equivalent series noise. Noise is explicit: no hiss is added implicitly.
 class Resistor
 {
 public:
@@ -21,7 +21,62 @@ public:
             resistanceOhms_ = value;
     }
 
+    void setTemperatureCoefficients(double firstOrderPerKelvin,
+                                    double secondOrderPerKelvinSquared = 0.0) noexcept
+    {
+        if (std::isfinite(firstOrderPerKelvin))
+            tc1_ = firstOrderPerKelvin;
+        if (std::isfinite(secondOrderPerKelvinSquared))
+            tc2_ = secondOrderPerKelvinSquared;
+    }
+
+    void setNominalTemperatureKelvin(double value) noexcept
+    {
+        if (std::isfinite(value) && value > 0.0)
+            nominalTemperatureKelvin_ = value;
+    }
+
     double resistanceOhms() const noexcept { return resistanceOhms_; }
+    double nominalTemperatureKelvin() const noexcept { return nominalTemperatureKelvin_; }
+    double temperatureCoefficient1() const noexcept { return tc1_; }
+    double temperatureCoefficient2() const noexcept { return tc2_; }
+
+    // SPICE-style first/second-order resistance temperature coefficients.
+    double resistanceAtTemperature(double temperatureKelvin) const noexcept
+    {
+        if (!std::isfinite(temperatureKelvin) || temperatureKelvin <= 0.0)
+            return resistanceOhms_;
+
+        const double delta = temperatureKelvin - nominalTemperatureKelvin_;
+        const double factor = 1.0 + tc1_ * delta + tc2_ * delta * delta;
+        const double result = resistanceOhms_ * factor;
+        return std::isfinite(result) && result > 0.0 ? result : resistanceOhms_;
+    }
+
+    // Ohm's law: a resistor is algebraic and has no internal dynamic state.
+    double currentForVoltage(double voltage,
+                             double temperatureKelvin = 293.15) const noexcept
+    {
+        if (!std::isfinite(voltage))
+            return 0.0;
+        return voltage / resistanceAtTemperature(temperatureKelvin);
+    }
+
+    double voltageForCurrent(double current,
+                             double temperatureKelvin = 293.15) const noexcept
+    {
+        if (!std::isfinite(current))
+            return 0.0;
+        return current * resistanceAtTemperature(temperatureKelvin);
+    }
+
+    double powerForVoltage(double voltage,
+                           double temperatureKelvin = 293.15) const noexcept
+    {
+        if (!std::isfinite(voltage))
+            return 0.0;
+        return voltage * currentForVoltage(voltage, temperatureKelvin);
+    }
 
     // Equivalent input-voltage noise density, in V/sqrt(Hz).
     double thermalNoiseDensity(double temperatureKelvin = 293.15) const noexcept
@@ -29,7 +84,8 @@ public:
         if (!std::isfinite(temperatureKelvin) || temperatureKelvin <= 0.0)
             return 0.0;
         constexpr double boltzmann = 1.380649e-23;
-        return std::sqrt(4.0 * boltzmann * temperatureKelvin * resistanceOhms_);
+        return std::sqrt(4.0 * boltzmann * temperatureKelvin *
+                         resistanceAtTemperature(temperatureKelvin));
     }
 
     // Integrated RMS noise over a one-sided noise bandwidth.
@@ -43,6 +99,9 @@ public:
 
 private:
     double resistanceOhms_ = 10000.0;
+    double nominalTemperatureKelvin_ = 293.15;
+    double tc1_ = 0.0;
+    double tc2_ = 0.0;
 };
 
 // Deterministic low-cost Gaussian approximation (sum of 12 uniform values).
