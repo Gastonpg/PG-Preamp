@@ -12,10 +12,10 @@ A component is not accepted merely because it sounds pleasing. Its behavior must
 
 A series resistor feeding a shunt capacitor, with capacitor voltage as output. For the ideal network:
 
-- \`tau = R * C\`
-- \`fc = 1 / (2*pi*R*C)\`
-- \`alpha = 1 - exp(-1/(fs*R*C))\`
-- \`y[n] = y[n-1] + alpha*(x[n]-y[n-1])\`
+- tau = R * C
+- fc = 1 / (2*pi*R*C)
+- alpha = 1 - exp(-1/(fs*R*C))
+- y[n] = y[n-1] + alpha*(x[n]-y[n-1])
 
 The exact zero-order-hold coefficient is used. Tests check time constant, cutoff, step response, stability at common sample rates and measured -3 dB response.
 
@@ -27,11 +27,11 @@ A current-driven capacitor stores dielectric voltage and includes series equival
 
 The model exposes thermal-noise density:
 
-\`en = sqrt(4 * kB * T * R)\` V/sqrt(Hz)
+en = sqrt(4 * kB * T * R) V/sqrt(Hz)
 
-For one-sided bandwidth \`B\`, integrated RMS noise is:
+For one-sided bandwidth B, integrated RMS noise is:
 
-\`vn,rms = en * sqrt(B)\`
+vn,rms = en * sqrt(B)
 
 An optional deterministic noise source produces a low-cost Gaussian approximation for component experiments. It is not automatically inserted into the plugin signal path. Noise must be assigned to a physical component and bandwidth to avoid arbitrary or double-counted hiss.
 
