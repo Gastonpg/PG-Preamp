@@ -45,6 +45,10 @@ public:
         double baseVolts = 0.0;
         double collectorVolts = 0.0;
         double emitterVolts = 0.0;
+        double collectorEmitterVolts = 0.0;
+        double collectorCurrentAmps = 0.0;
+        double baseCurrentAmps = 0.0;
+        double emitterCurrentAmps = 0.0;
     };
 
     bool prepare(double sampleRate, const Parameters& parameters,
@@ -202,6 +206,10 @@ public:
         lastResult_.baseVolts = candidate[0];
         lastResult_.collectorVolts = candidate[2];
         lastResult_.emitterVolts = candidate[4];
+        lastResult_.collectorEmitterVolts = candidate[3] - candidate[5];
+        lastResult_.collectorCurrentAmps = finalDevice.currents.collectorAmps;
+        lastResult_.baseCurrentAmps = finalDevice.currents.baseAmps;
+        lastResult_.emitterCurrentAmps = finalDevice.currents.emitterAmps;
 
         result = lastResult_;
         return true;
@@ -214,8 +222,20 @@ public:
     }
 
     const ProcessResult& lastResult() const noexcept { return lastResult_; }
+    const ProcessResult& biasOperatingPoint() const noexcept { return biasOperatingPoint_; }
     double sampleRate() const noexcept { return sampleRate_; }
     bool isPrepared() const noexcept { return configured_; }
+    bool isBiasReady() const noexcept { return biasReady_; }
+
+    // A forward-active NPN remains biased with positive collector current
+    // and collector voltage above its emitter. This is a point-in-time
+    // electrical check; full-cycle Class-A headroom is covered by tests.
+    bool isForwardActive() const noexcept
+    {
+        return lastResult_.converged &&
+               lastResult_.collectorCurrentAmps > 0.0 &&
+               lastResult_.collectorEmitterVolts > 0.2;
+    }
 
 private:
     static constexpr std::size_t UnknownCount = 7;
@@ -479,7 +499,12 @@ private:
         lastResult_.baseVolts = candidate[0];
         lastResult_.collectorVolts = candidate[2];
         lastResult_.emitterVolts = candidate[4];
+        lastResult_.collectorEmitterVolts = candidate[3] - candidate[5];
+        lastResult_.collectorCurrentAmps = biasDevice.currents.collectorAmps;
+        lastResult_.baseCurrentAmps = biasDevice.currents.baseAmps;
+        lastResult_.emitterCurrentAmps = biasDevice.currents.emitterAmps;
         lastResult_.output = static_cast<float>(candidate[6]);
+        biasOperatingPoint_ = lastResult_;
         return true;
     }
 
@@ -553,6 +578,7 @@ private:
     double outputCapacitorVoltage_ = 0.0;
     double previousTransistorCharge_[3]{};
     ProcessResult lastResult_{};
+    ProcessResult biasOperatingPoint_{};
     bool configured_ = false;
     bool biasReady_ = false;
 };
