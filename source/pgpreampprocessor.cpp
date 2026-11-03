@@ -155,7 +155,9 @@ tresult PLUGIN_API PGPreampProcessor::setupProcessing(Vst::ProcessSetup& setup)
 
 tresult PLUGIN_API PGPreampProcessor::canProcessSampleSize(int32 symbolicSampleSize)
 {
-    return symbolicSampleSize == Vst::kSample32 ? kResultTrue : kResultFalse;
+    return (symbolicSampleSize == Vst::kSample32 ||
+            symbolicSampleSize == Vst::kSample64)
+        ? kResultTrue : kResultFalse;
 }
 
 double PGPreampProcessor::decibelsToLinear(double decibels) noexcept
