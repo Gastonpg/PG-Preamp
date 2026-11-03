@@ -25,8 +25,8 @@ public:
         double coreAreaSquareMeters = 1.0e-4;
         double magneticPathLengthMeters = 0.08;
         double relativePermeability = 4000.0;
-        double coerciveFieldAmpsPerMeter = 0.05;
-        double magneticRelaxationSeconds = 0.01;
+        double coerciveFieldAmpsPerMeter = 0.001;
+        double magneticRelaxationSeconds = 50.0e-6;
 
         double primaryTurns = 1200.0;
         double secondaryTurns = 1200.0;
