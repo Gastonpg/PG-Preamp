@@ -1,8 +1,12 @@
 #include "pgpreampcontroller.h"
 #include "pgpreampcids.h"
+
 #include "base/source/fstreamer.h"
+#include "public.sdk/source/vst/vstparameters.h"
+#include "vstgui/plugin-bindings/vst3editor.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace Steinberg {
 
@@ -17,17 +21,18 @@ tresult PLUGIN_API PGPreampController::initialize(FUnknown* context)
         Vst::ParameterInfo::kCanAutomate | Vst::ParameterInfo::kIsBypass,
         kPGPreampBypassId);
 
-    // Normalized 0.4 maps to 0 dB in the -12 .. +18 dB input range.
-    parameters.addParameter(
-        STR16("Input"), STR16("dB"), 0, 0.4,
-        Vst::ParameterInfo::kCanAutomate,
-        kPGPreampInputGainId);
+    // Keep the normalized mappings used by the circuit processor:
+    // Input 0.4 = 0 dB in the -12..+18 dB range.
+    auto* input = new Vst::RangeParameter(
+        STR16("Input"), kPGPreampInputGainId, STR16("dB"), -12.0, 18.0, 0.0);
+    input->setPrecision(1);
+    parameters.addParameter(input);
 
-    // Normalized 0.5 maps to 0 dB in the -12 .. +12 dB output range.
-    parameters.addParameter(
-        STR16("Output"), STR16("dB"), 0, 0.5,
-        Vst::ParameterInfo::kCanAutomate,
-        kPGPreampOutputGainId);
+    // Output 0.5 = 0 dB in the -12..+12 dB range.
+    auto* output = new Vst::RangeParameter(
+        STR16("Output"), kPGPreampOutputGainId, STR16("dB"), -12.0, 12.0, 0.0);
+    output->setPrecision(1);
+    parameters.addParameter(output);
 
     return kResultOk;
 }
@@ -52,6 +57,13 @@ tresult PLUGIN_API PGPreampController::setComponentState(IBStream* state)
     setParamNormalized(kPGPreampOutputGainId,
                        std::clamp(static_cast<double>(outputValue), 0.0, 1.0));
     return kResultOk;
+}
+
+IPlugView* PLUGIN_API PGPreampController::createView(FIDString name)
+{
+    if (name != nullptr && std::strcmp(name, Vst::ViewType::kEditor) == 0)
+        return new VSTGUI::VST3Editor(this, "view", "pgpreamp.uidesc");
+    return nullptr;
 }
 
 } // namespace Steinberg

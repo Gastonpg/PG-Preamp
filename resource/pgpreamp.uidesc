@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+    <fonts/>
+    <colors>
+        <color name="Panel" rgba="#293746ff"/>
+        <color name="Accent" rgba="#e3bd78ff"/>
+        <color name="Text" rgba="#f3eee2ff"/>
+        <color name="MutedText" rgba="#c6ccd0ff"/>
+        <color name="Field" rgba="#1d2934ff"/>
+        <color name="Outline" rgba="#a89169ff"/>
+    </colors>
+
+    <template class="CViewContainer" name="view" origin="0, 0" size="860, 420"
+              minSize="860, 420" maxSize="860, 420" background-color="Panel"
+              background-color-draw-style="filled" mouse-enabled="true" transparent="false">
+        <view class="CView" origin="0, 0" size="860, 420" bitmap="RackPanel"
+              mouse-enabled="false" transparent="false"/>
+
+        <view class="CTextLabel" origin="42, 25" size="380, 34" title="PG  /  PREAMP"
+              font="~ NormalFontVeryBig" font-antialias="true" font-color="Text"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="44, 60" size="410, 20"
+              title="CIRCUIT LAB  ·  EXPERIMENTAL EDITION"
+              font="~ NormalFontSmall" font-antialias="true" font-color="Accent"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+        <view class="CView" origin="680, 2" size="172, 62" bitmap="GeminiLogo"
+              mouse-enabled="false" transparent="true"/>
+
+        <view class="CTextLabel" origin="174, 145" size="150" height="20"
+              title="INPUT GAIN" font="~ NormalFont" font-antialias="true"
+              font-color="Text" text-alignment="center"
+              style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="484, 145" size="150" height="20"
+              title="OUTPUT LEVEL" font="~ NormalFont" font-antialias="true"
+              font-color="Text" text-alignment="center"
+              style-no-frame="true" transparent="true"/>
+
+        <view class="CAnimKnob" control-tag="Input" bitmap="KnobSheet"
+              origin="210, 170" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
+              default-value="0.4" mouse-enabled="true" transparent="true"/>
+        <view class="CAnimKnob" control-tag="Output" bitmap="KnobSheet"
+              origin="520, 170" size="78, 78" height-of-one-image="72" sub-pixmaps="61"
+              angle-start="205" angle-range="130" min-value="0" max-value="1"
+              default-value="0.5" mouse-enabled="true" transparent="true"/>
+
+        <view class="CTextEdit" control-tag="Input" origin="191, 258" size="116, 28"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false"
+              style-doubleclick="false" min-value="0" max-value="1"
+              default-value="0.4" transparent="false"/>
+        <view class="CTextEdit" control-tag="Output" origin="501, 258" size="116, 28"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              back-color="Field" frame-color="Outline" frame-width="1"
+              text-alignment="center" text-inset="4, 0" value-precision="1"
+              style-round-rect="true" immediate-text-change="false"
+              style-doubleclick="false" min-value="0" max-value="1"
+              default-value="0.5" transparent="false"/>
+
+        <view class="COnOffButton" control-tag="Bypass" bitmap="StageSwitch"
+              origin="708, 178" size="44, 56"
+              min-value="0" max-value="1" default-value="0"
+              tooltip="Bypass the circuit model" mouse-enabled="true"/>
+        <view class="CTextLabel" origin="674, 245" size="112, 22" title="BYPASS"
+              font="~ NormalFont" font-antialias="true" font-color="Text"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+
+        <view class="CTextLabel" origin="174, 328" size="150, 18"
+              title="−12 dB  …  +18 dB" font="~ NormalFontSmall"
+              font-antialias="true" font-color="MutedText"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="484, 328" size="150" height="18"
+              title="−12 dB  …  +12 dB" font="~ NormalFontSmall"
+              font-antialias="true" font-color="MutedText"
+              text-alignment="center" style-no-frame="true" transparent="true"/>
+        <view class="CTextLabel" origin="42, 385" size="500" height="16"
+              title="PG AUDIO  ·  CIRCUIT ENGINE IN DEVELOPMENT"
+              font="~ NormalFontSmall" font-antialias="true" font-color="MutedText"
+              text-alignment="left" style-no-frame="true" transparent="true"/>
+    </template>
+
+    <bitmaps>
+        <bitmap name="KnobSheet" path="gemini-knob-sheet-v2.png"/>
+        <bitmap name="RackPanel" path="gemini-panel-final.png"/>
+        <bitmap name="StageSwitch" path="gemini-switch-sheet.png"/>
+        <bitmap name="GeminiLogo" path="gemini-logo.png"/>
+    </bitmaps>
+    <control-tags>
+        <control-tag name="Bypass" tag="100"/>
+        <control-tag name="Input" tag="101"/>
+        <control-tag name="Output" tag="102"/>
+    </control-tags>
+</vstgui-ui-description>

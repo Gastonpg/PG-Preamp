@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25.0)
 
 project(PGPreamp
     VERSION 0.1.0
-    DESCRIPTION "PG Preamp - minimal VST3 audio effect"
+    DESCRIPTION "PG Preamp - experimental circuit-model VST3 audio effect"
 )
 
 add_subdirectory(external)
@@ -16,12 +16,26 @@ smtg_add_vst3plugin(PGPreamp
     source/pgpreampcontroller.h
     source/pgpreampcontroller.cpp
     source/pgpreampentry.cpp
+    resource/pgpreamp.uidesc
+    resource/gemini-panel-final.png
+    resource/gemini-knob-sheet-v2.png
+    resource/gemini-switch-sheet.png
+    resource/gemini-logo.png
+)
+
+smtg_target_add_plugin_resources(PGPreamp
+    RESOURCES
+    resource/pgpreamp.uidesc
+    resource/gemini-panel-final.png
+    resource/gemini-knob-sheet-v2.png
+    resource/gemini-switch-sheet.png
+    resource/gemini-logo.png
 )
 
 smtg_target_configure_version_file(PGPreamp)
 
 target_compile_features(PGPreamp PRIVATE cxx_std_17)
-target_link_libraries(PGPreamp PRIVATE sdk)
+target_link_libraries(PGPreamp PRIVATE sdk vstgui_support)
 
 # The circuit engine is tested independently from the VST3 wrapper.
 include(CTest)
