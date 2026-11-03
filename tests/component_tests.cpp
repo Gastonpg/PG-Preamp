@@ -1065,6 +1065,17 @@ int main()
               std::sqrt(2.0 * noiseElectronCharge *
                         std::abs(bc550cBias.collectorCurrentAmps)), 1.0e-15))
         return 150;
+    std::cout << "BC550C reference bias noise sources (not injected): "
+              << "RB=" << bc550cNoise.baseResistanceVoltageNoiseVPerSqrtHz * 1.0e9
+              << " nV/sqrtHz, RC="
+              << bc550cNoise.collectorResistanceVoltageNoiseVPerSqrtHz * 1.0e9
+              << " nV/sqrtHz, RE="
+              << bc550cNoise.emitterResistanceVoltageNoiseVPerSqrtHz * 1.0e9
+              << " nV/sqrtHz, base shot="
+              << bc550cNoise.baseCurrentShotNoiseAPerSqrtHz * 1.0e12
+              << " pA/sqrtHz, collector shot="
+              << bc550cNoise.collectorCurrentShotNoiseAPerSqrtHz * 1.0e12
+              << " pA/sqrtHz\\n";
 
     double bc550cMinimumCollectorCurrent =
         std::numeric_limits<double>::infinity();
