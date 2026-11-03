@@ -27,6 +27,7 @@ int main()
     using PGAudio::Circuit::Inductor;
     using PGAudio::Circuit::EbersMollNpn;
     using PGAudio::Circuit::BjtAdvancedParameters;
+    using PGAudio::Circuit::PreisachCore;
     using PGAudio::Circuit::MnaCircuit;
 
     RcStage rc;
