@@ -113,6 +113,10 @@ void PGPreampProcessor::updateParameters(Vst::ProcessData& data) noexcept
 
 tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
 {
+    // Hosts may flush automation/state without audio buffers. Consume parameter
+    // queues before validating audio buses so bypass and controls stay in sync.
+    updateParameters(data);
+
     if (data.numInputs < 1 || data.numOutputs < 1 || data.numSamples <= 0)
         return kResultOk;
 
@@ -123,8 +127,6 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
         input.channelBuffers32 == nullptr ||
         output.channelBuffers32 == nullptr)
         return kResultOk;
-
-    updateParameters(data);
 
     const int32 channels = std::min(input.numChannels, output.numChannels);
     if (bypass_ || !stagesReady_)
