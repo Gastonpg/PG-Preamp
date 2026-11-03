@@ -159,6 +159,9 @@ int main()
     EbersMollNpn hotTransistor;
     hotTransistor.prepare(1.0e-14, 100.0, 1.0, 350.0);
     if (!(hotTransistor.thermalVoltage() > transistor.thermalVoltage())) return 27;
+    if (!(hotTransistor.saturationCurrentAmps() > transistor.saturationCurrentAmps())) return 28;
+    const auto hotAtSameBias = hotTransistor.evaluate(vbe, 5.0, 0.0);
+    if (!(hotAtSameBias.collectorAmps > forwardActive.collectorAmps)) return 29;
 
     std::cout << "PG Circuit Engine: R, L, C and NPN device tests passed.\n";
     return 0;
