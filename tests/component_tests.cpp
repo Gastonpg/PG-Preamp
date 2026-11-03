@@ -722,6 +722,63 @@ int main()
     if (!(transformerFluxPeak > 1.0e-6 && transformerFluxPeak < 0.1))
         return 92;
 
+    // Frequency-response sanity sweep for the microphone-transformer proxy.
+    // A 192 kHz simulation permits a 48 kHz high-frequency test while keeping
+    // integer-cycle windows for every measurement frequency.
+    constexpr double transformerSweepRate = 192000.0;
+    const std::array<int, 8> transformerPeriods = {
+        19200, 9600, 3840, 1920, 192, 19, 10, 4
+    };
+    double transformerOneKhzGain = 0.0;
+    for (std::size_t frequencyIndex = 0;
+         frequencyIndex < transformerPeriods.size(); ++frequencyIndex)
+    {
+        const int period = transformerPeriods[frequencyIndex];
+        const double frequency = transformerSweepRate / period;
+        FixedMagneticTransformerStage sweepTransformer;
+        if (!sweepTransformer.prepare(transformerSweepRate, transformerParameters))
+            return 100;
+
+        const int settleSamples = period * 8;
+        const int measurementSamples = period * 4;
+        double inputEnergy = 0.0;
+        double outputEnergy = 0.0;
+        for (int sample = 0; sample < settleSamples + measurementSamples; ++sample)
+        {
+            const double input = 0.005 *
+                std::sin(2.0 * pi * sample / static_cast<double>(period));
+            FixedMagneticTransformerStage::ProcessResult sweepResult;
+            if (!sweepTransformer.processSample(
+                    static_cast<float>(input), sweepResult))
+                return 101;
+            if (!std::isfinite(sweepResult.outputVolts))
+                return 102;
+
+            if (sample >= settleSamples)
+            {
+                inputEnergy += input * input;
+                outputEnergy += static_cast<double>(sweepResult.outputVolts) *
+                                sweepResult.outputVolts;
+            }
+        }
+
+        const double gain = std::sqrt(outputEnergy / inputEnergy);
+        if (frequencyIndex == 4)
+            transformerOneKhzGain = gain;
+        if (!std::isfinite(gain) || !(gain > 0.0))
+            return 103;
+
+        const double deviationDb = 20.0 * std::log10(gain / 1.2545);
+        if (std::abs(deviationDb) > 0.5)
+        {
+            std::cerr << "Iron response at " << frequency << " Hz deviated "
+                      << deviationDb << " dB from the 1.2545x reference\\n";
+            return 104;
+        }
+    }
+    if (!(transformerOneKhzGain > 1.20 && transformerOneKhzGain < 1.30))
+        return 105;
+
     // A deliberately high-level, low-frequency drive exercises the nonlinear
     // core region. The reduced-order core must remain finite and bounded.
     transformerStage.reset();
