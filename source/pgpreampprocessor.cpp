@@ -1,5 +1,6 @@
 #include "pgpreampprocessor.h"
 #include "pgpreampcids.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
 
 #include <algorithm>
 #include <cmath>
