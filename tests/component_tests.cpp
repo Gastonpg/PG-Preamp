@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <chrono>
 #include <limits>
 #include <iostream>
 
@@ -712,6 +713,127 @@ int main()
               << minimumCollectorCurrent * 1000.0
               << " mA, minimum Vce=" << minimumCollectorEmitterVolts
               << " V (no cutoff)\\n";
+
+    // Measure distortion at two useful drive levels with an integer-cycle
+    // DFT window. This is a deterministic circuit-model regression, not a
+    // physical hardware measurement.
+    const auto measureStageThd = [&](double peakVolts)
+    {
+        FixedCommonEmitterStage measurementStage;
+        if (!measurementStage.prepare(
+                48000.0,
+                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                pluginDefaultTransistor))
+            return std::numeric_limits<double>::quiet_NaN();
+
+        constexpr int totalSamples = 9600;
+        constexpr int discardSamples = 4800;
+        constexpr int measuredCount = totalSamples - discardSamples;
+        std::array<double, measuredCount> measuredOutput{};
+        for (int sample = 0; sample < totalSamples; ++sample)
+        {
+            const double input = peakVolts *
+                std::sin(2.0 * pi * 1000.0 * sample / 48000.0);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!measurementStage.processSample(static_cast<float>(input), result))
+                return std::numeric_limits<double>::quiet_NaN();
+            if (sample >= discardSamples)
+                measuredOutput[static_cast<std::size_t>(sample - discardSamples)] =
+                    result.output;
+        }
+
+        const auto amplitudeAtBin = [&](int bin)
+        {
+            double real = 0.0;
+            double imaginary = 0.0;
+            for (int n = 0; n < measuredCount; ++n)
+            {
+                const double phase = 2.0 * pi * bin * n / measuredCount;
+                real += measuredOutput[static_cast<std::size_t>(n)] * std::cos(phase);
+                imaginary -= measuredOutput[static_cast<std::size_t>(n)] * std::sin(phase);
+            }
+            return (2.0 / measuredCount) * std::sqrt(
+                real * real + imaginary * imaginary);
+        };
+
+        const double fundamental = amplitudeAtBin(100);
+        double harmonicPower = 0.0;
+        for (int harmonic = 2; harmonic <= 23; ++harmonic)
+        {
+            const double amplitude = amplitudeAtBin(100 * harmonic);
+            harmonicPower += amplitude * amplitude;
+        }
+        return fundamental > 0.0 ? std::sqrt(harmonicPower) / fundamental
+                                 : std::numeric_limits<double>::quiet_NaN();
+    };
+
+    const double lowDriveThd = measureStageThd(0.005);
+    const double nominalMaximumDriveThd = measureStageThd(0.04);
+    if (!std::isfinite(lowDriveThd) ||
+        !std::isfinite(nominalMaximumDriveThd) ||
+        !(nominalMaximumDriveThd > lowDriveThd))
+        return 115;
+    std::cout << "PG A Stage M1 THD at 1 kHz: 5 mV="
+              << lowDriveThd * 100.0 << "%, 40 mV="
+              << nominalMaximumDriveThd * 100.0 << "%\\n";
+
+    // Small-signal frequency-response survey at integer-cycle frequencies.
+    constexpr double stageSweepRate = 240000.0;
+    const std::array<int, 8> stagePeriods = {
+        12000, 4800, 2400, 240, 48, 24, 16, 12
+    }; // 20 Hz, 50 Hz, 100 Hz, 1 kHz, 5 kHz, 10 kHz, 15 kHz, 20 kHz
+    std::array<double, stagePeriods.size()> stageFrequencyGains{};
+    double stageOneKhzGain = 0.0;
+    double maximumStageResponseDeviationDb = 0.0;
+    for (std::size_t frequencyIndex = 0;
+         frequencyIndex < stagePeriods.size(); ++frequencyIndex)
+    {
+        const int period = stagePeriods[frequencyIndex];
+        FixedCommonEmitterStage sweepStage;
+        if (!sweepStage.prepare(
+                stageSweepRate,
+                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                pluginDefaultTransistor))
+            return 116;
+
+        const int settleSamples = period * 6;
+        const int measurementSamples = period * 4;
+        double inputEnergy = 0.0;
+        double outputEnergy = 0.0;
+        for (int sample = 0; sample < settleSamples + measurementSamples; ++sample)
+        {
+            const double input = 0.005 *
+                std::sin(2.0 * pi * sample / static_cast<double>(period));
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!sweepStage.processSample(static_cast<float>(input), result))
+                return 117;
+            if (sample >= settleSamples)
+            {
+                inputEnergy += input * input;
+                outputEnergy += static_cast<double>(result.output) * result.output;
+            }
+        }
+        const double gain = std::sqrt(outputEnergy / inputEnergy);
+        if (!std::isfinite(gain) || !(gain > 0.0))
+            return 118;
+        stageFrequencyGains[frequencyIndex] = gain;
+        if (frequencyIndex == 3)
+            stageOneKhzGain = gain;
+    }
+    if (!(stageOneKhzGain > 0.0))
+        return 119;
+    for (std::size_t frequencyIndex = 0;
+         frequencyIndex < stageFrequencyGains.size(); ++frequencyIndex)
+    {
+        const double deviationDb = 20.0 * std::log10(
+            stageFrequencyGains[frequencyIndex] / stageOneKhzGain);
+        maximumStageResponseDeviationDb = std::max(
+            maximumStageResponseDeviationDb, std::abs(deviationDb));
+    }
+    std::cout << "PG A Stage M1 20 Hz..20 kHz sweep: 1 kHz gain="
+              << stageOneKhzGain << "x, max deviation="
+              << maximumStageResponseDeviationDb << " dB\\n";
+
 
     // Real-time loaded transformer: the primary is driven through a source
     // resistance, the secondary is terminated, and winding currents satisfy
