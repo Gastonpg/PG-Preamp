@@ -648,7 +648,8 @@ int main()
         0.0, pluginStageOutputSquares / pluginStageMeasuredSamples -
              pluginStageOutputMean * pluginStageOutputMean) /
         (pluginStageInputSquares / pluginStageMeasuredSamples));
-    if (!(pluginStageGain > 2.0 && pluginStageGain < 8.0))
+    if (!(pluginStageGain > 2.0 && pluginStageGain < 8.0) ||
+        !near(pluginStageGain, 4.14469, 0.01))
         return 108;
     std::cout << "Plugin A Stage reference gain=" << pluginStageGain << "x\\n";
 
