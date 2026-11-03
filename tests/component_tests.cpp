@@ -273,6 +273,9 @@ int main()
     if (!(highVce.collectorAmps > lowVce.collectorAmps))
         return 54;
 
+    // Use the detailed device in subsequent assembled amplifier tests too.
+    transistor.setAdvancedParameters(detailedParameters);
+
     // RC transient solved as an assembled network (1 kOhm driving 1 uF).
     MnaCircuit rcNetwork;
     const auto rcInput = rcNetwork.createNode();
