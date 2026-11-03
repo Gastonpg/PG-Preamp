@@ -1042,6 +1042,30 @@ int main()
                  bc550cBias.emitterCurrentAmps) > 1.0e-9)
         return 138;
 
+    // First-order transistor noise diagnostics are calculated at the solved
+    // bias point but are not injected into the audio signal path.
+    const auto bc550cNoise = cordellBc550c.evaluateNoiseSources(
+        300.15, {
+            bc550cBias.collectorCurrentAmps,
+            bc550cBias.baseCurrentAmps,
+            bc550cBias.emitterCurrentAmps
+        });
+    constexpr double noiseBoltzmann = 1.380649e-23;
+    constexpr double noiseElectronCharge = 1.602176634e-19;
+    if (!near(bc550cNoise.baseResistanceVoltageNoiseVPerSqrtHz,
+              std::sqrt(4.0 * noiseBoltzmann * 300.15 * 167.0), 1.0e-15) ||
+        !near(bc550cNoise.collectorResistanceVoltageNoiseVPerSqrtHz,
+              std::sqrt(4.0 * noiseBoltzmann * 300.15 * 1.0), 1.0e-15) ||
+        !near(bc550cNoise.emitterResistanceVoltageNoiseVPerSqrtHz,
+              std::sqrt(4.0 * noiseBoltzmann * 300.15 * 0.04), 1.0e-15) ||
+        !near(bc550cNoise.baseCurrentShotNoiseAPerSqrtHz,
+              std::sqrt(2.0 * noiseElectronCharge *
+                        std::abs(bc550cBias.baseCurrentAmps)), 1.0e-15) ||
+        !near(bc550cNoise.collectorCurrentShotNoiseAPerSqrtHz,
+              std::sqrt(2.0 * noiseElectronCharge *
+                        std::abs(bc550cBias.collectorCurrentAmps)), 1.0e-15))
+        return 150;
+
     double bc550cMinimumCollectorCurrent =
         std::numeric_limits<double>::infinity();
     double bc550cMinimumVce =
