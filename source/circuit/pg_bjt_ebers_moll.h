@@ -214,10 +214,11 @@ public:
             reverseJunction > 0.0
                 ? 1.0 + reverseJunction / advanced_.reverseBetaRollOffCurrentAmps
                 : 1.0;
-        const double base =
+        const double baseWithoutCollectorLeakage =
             forwardJunction * ibForward * forwardRollOff +
             reverseJunction * ibReverse * reverseRollOff +
-            forwardLeakage + reverseLeakage;
+            forwardLeakage;
+        const double base = baseWithoutCollectorLeakage + reverseLeakage;
 
         double earlyFactor = 1.0;
         double earlySlope = 0.0;
@@ -237,8 +238,12 @@ public:
                 earlySlope = -1.0 / advanced_.reverseEarlyVoltage;
         }
 
-        const double collector = transport * earlyFactor;
-        const double emitter = -collector - base;
+        // The BE leakage branch conducts from base to emitter. The BC
+        // leakage branch conducts from base to collector, so it contributes
+        // equally and oppositely to the base and collector terminal currents.
+        const double collector = transport * earlyFactor - reverseLeakage;
+        const double emitter = -transport * earlyFactor -
+                               baseWithoutCollectorLeakage;
         result.currents = {collector, base, emitter};
 
         const double forwardBaseSlope = ibForward *
@@ -273,8 +278,12 @@ public:
         for (int column = 0; column < 3; ++column)
         {
             const double dVce = column == 1 ? 1.0 : (column == 2 ? -1.0 : 0.0);
+            const double leakageBcSlope = column == 0
+                ? reverseLeakageDerivative
+                : (column == 1 ? -reverseLeakageDerivative : 0.0);
             result.conductance[1][column] =
-                dTransport[column] * earlyFactor + transport * earlySlope * dVce;
+                dTransport[column] * earlyFactor +
+                transport * earlySlope * dVce - leakageBcSlope;
             result.conductance[2][column] =
                 -result.conductance[0][column] - result.conductance[1][column];
         }
