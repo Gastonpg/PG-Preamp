@@ -74,20 +74,31 @@ int main()
     }
 
     Resistor resistor(10000.0);
+    if (!near(resistor.currentForVoltage(2.0), 0.0002, 1.0e-12)) return 8;
+    if (!near(resistor.voltageForCurrent(0.0002), 2.0, 1.0e-12)) return 9;
+    if (!near(resistor.powerForVoltage(2.0), 0.0004, 1.0e-12)) return 10;
+
+    Resistor tempcoResistor(1000.0);
+    tempcoResistor.setTemperatureCoefficients(0.0039, 0.0);
+    const double hotResistance = tempcoResistor.resistanceAtTemperature(313.15);
+    if (!near(hotResistance, 1078.0, 1.0e-9)) return 11;
+    if (!near(tempcoResistor.currentForVoltage(1.0, 313.15), 1.0 / 1078.0, 1.0e-12))
+        return 12;
+
     constexpr double boltzmann = 1.380649e-23;
     const double expectedDensity = std::sqrt(4.0 * boltzmann * 293.15 * 10000.0);
-    if (!near(resistor.thermalNoiseDensity(), expectedDensity, expectedDensity * 1.0e-12)) return 8;
+    if (!near(resistor.thermalNoiseDensity(), expectedDensity, expectedDensity * 1.0e-12)) return 13;
     const double expectedBandRms = expectedDensity * std::sqrt(20000.0);
-    if (!near(resistor.thermalNoiseRms(20000.0), expectedBandRms, expectedBandRms * 1.0e-12)) return 9;
+    if (!near(resistor.thermalNoiseRms(20000.0), expectedBandRms, expectedBandRms * 1.0e-12)) return 14;
     if (resistor.thermalNoiseRms(0.0) != 0.0 ||
-        resistor.thermalNoiseRms(1000.0, -1.0) != 0.0) return 10;
+        resistor.thermalNoiseRms(1000.0, -1.0) != 0.0) return 15;
 
     ResistorThermalNoise noiseA;
     ResistorThermalNoise noiseB;
     noiseA.prepare(48000.0, 10000.0, 293.15, 1234567);
     noiseB.prepare(48000.0, 10000.0, 293.15, 1234567);
     const double expectedNoiseRms = resistor.thermalNoiseRms(24000.0);
-    if (!near(noiseA.noiseRmsVolts(), expectedNoiseRms, expectedNoiseRms * 1.0e-12)) return 11;
+    if (!near(noiseA.noiseRmsVolts(), expectedNoiseRms, expectedNoiseRms * 1.0e-12)) return 16;
 
     constexpr int noiseSamples = 200000;
     double sum = 0.0;
@@ -96,14 +107,14 @@ int main()
     {
         const float a = noiseA.process();
         const float b = noiseB.process();
-        if (a != b || !std::isfinite(a)) return 12;
+        if (a != b || !std::isfinite(a)) return 17;
         sum += a;
         sumSquares += static_cast<double>(a) * a;
     }
     const double mean = sum / noiseSamples;
     const double measuredNoiseRms = std::sqrt(sumSquares / noiseSamples - mean * mean);
-    if (std::abs(mean) > expectedNoiseRms * 0.015) return 13;
-    if (std::abs(measuredNoiseRms - expectedNoiseRms) > expectedNoiseRms * 0.015) return 14;
+    if (std::abs(mean) > expectedNoiseRms * 0.015) return 18;
+    if (std::abs(measuredNoiseRms - expectedNoiseRms) > expectedNoiseRms * 0.015) return 19;
 
     Capacitor capacitor;
     constexpr double capValue = 10.0e-6;
