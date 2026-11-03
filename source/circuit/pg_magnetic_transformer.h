@@ -26,8 +26,9 @@ public:
         double coreFluxDensityTesla = 0.0;
         double coreFluxWebers = 0.0;
         double coreHysteresisWorkDensityJoulesPerM3 = 0.0;
+        double coreHysteresisWorkIncrementDensityJoulesPerM3 = 0.0;
         double coreEddyLossDensityWattsPerM3 = 0.0;
-        double coreLossPowerEstimateWatts = 0.0;
+        double coreEddyLossPowerWatts = 0.0;
     };
 
     bool prepare(double saturationFluxDensityTesla,
@@ -80,7 +81,6 @@ public:
             !std::isfinite(timeStepSeconds) || timeStepSeconds <= 0.0)
             return lastSample_;
 
-        const double previousHysteresisWork = core_.hysteresisWorkDensity();
         const double field = (primaryTurns_ * primaryCurrentAmps +
                               secondaryTurns_ * secondaryCurrentAmps) /
                              core_.magneticPathLengthMeters();
@@ -106,9 +106,8 @@ public:
             secondaryLeakageInductanceHenries_ * secondaryCurrentRate +
             secondaryTurns_ * core_.coreAreaSquareMeters() * fluxRate;
 
-        const double hysteresisPowerDensity =
-            std::max(0.0, (core_.hysteresisWorkDensity() -
-                           previousHysteresisWork) / timeStepSeconds);
+        const double hysteresisWorkIncrementDensity =
+            coreSample.hysteresisWorkIncrementDensityJoulesPerM3;
         const double eddyPowerDensity = coreSample.eddyLossDensityWattsPerM3;
 
         lastSample_ = {
@@ -120,8 +119,9 @@ public:
             coreSample.fluxDensityTesla,
             coreFlux,
             core_.hysteresisWorkDensity(),
+            hysteresisWorkIncrementDensity,
             eddyPowerDensity,
-            (hysteresisPowerDensity + eddyPowerDensity) * coreVolumeCubicMeters_
+            eddyPowerDensity * coreVolumeCubicMeters_
         };
 
         previousPrimaryCurrentAmps_ = primaryCurrentAmps;
