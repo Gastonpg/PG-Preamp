@@ -503,7 +503,7 @@ private:
         lastResult_.collectorCurrentAmps = biasDevice.currents.collectorAmps;
         lastResult_.baseCurrentAmps = biasDevice.currents.baseAmps;
         lastResult_.emitterCurrentAmps = biasDevice.currents.emitterAmps;
-        lastResult_.output = static_cast<float>(candidate[6]);
+        lastResult_.output = candidate[6];
         biasOperatingPoint_ = lastResult_;
         return true;
     }
