@@ -1,44 +1,43 @@
 # PG Preamp
 
-PG Preamp is an original PG Audio VST3 project. Its main branch remains the stable transparent baseline while this experimental branch develops a physical-component DSP engine and a first audible circuit stage.
+PG Preamp is an original PG Audio VST3 project. The stable `main` branch remains untouched while this experimental branch develops the component-based DSP engine and its first audible signal path.
 
-## Experimental branch: circuit-engine-foundation
+## Experimental first version
 
-### Experimental VST3 build
+The Windows x64 VST3 contains two independently switchable blocks per channel:
 
-The Windows x64 VST3 currently contains one fixed-topology common-emitter stage per audio channel. It exposes generic host controls:
+- **A Stage:** a fixed common-emitter transistor circuit with a solved DC operating point, dynamic junction charge and coupling capacitors.
+- **Iron:** a loaded two-winding input transformer model with winding resistance, leakage inductance, magnetizing current, a smooth stateful magnetic core and Faraday-induced winding voltage.
+
+The temporary rack-style editor exposes:
 
 - **Bypass**
 - **Input:** -12 to +18 dB, default 0 dB
 - **Output:** -12 to +12 dB, default 0 dB
+- **A Stage:** enabled by default
+- **Iron:** disabled by default
 
-The processor saves and restores these three parameter values with VST3 state. The fixed stage is prepared outside the audio callback and processes samples with fixed-size stack arrays; it does not allocate heap memory or invoke the generic MNA solver from the callback.
+A Stage and Iron can be auditioned separately or together. The state stream saves all five controls. Older three-value project states remain readable; they load with A Stage enabled and Iron disabled.
 
-The transistor values are provisional engineering parameters, not a calibrated BC184C model. The experimental plugin currently does **not** include the nonlinear transformer in its audio path, and the current common-emitter circuit is not the final PG Preamp topology or a claim of exact 1073 emulation.
+The Iron block is a reduced-order real-time core model. It is deliberately not the same as feeding the discrete Preisach relay ensemble directly into the audio callback: its smooth dynamic magnetic law avoids discontinuous flux steps at sample boundaries. The detailed Preisach core and current-driven transformer remain available as offline reference models. The real-time core still needs calibration against a selected transformer and measured B-H / impedance data.
 
-### Circuit engine
+The transistor parameters and transformer values are provisional engineering defaults, not calibrated BC184C or commercial transformer models. This is an original experimental circuit design, not an exact 1073 emulation.
 
-- **Resistor:** Ohm's law, power dissipation, temperature coefficients and Johnson-Nyquist noise.
-- **Capacitor:** stored charge, ESR and leakage.
-- **Inductor:** inductance and winding resistance.
-- **Linear transformer:** coupled windings, mutual inductance, polarity and winding resistance.
-- **Magnetic core:** Preisach-type hysteresis, remanence, saturation and an eddy-loss proxy.
-- **Nonlinear transformer:** winding resistance/leakage plus history-dependent core flux and Faraday-induced voltage.
-- **NPN transistor:** Early effect, internal series resistances, depletion capacitances, transit-time charge and temperature scaling.
-- **Generic MNA reference solver:** combines R, C, L, sources, coupled windings and nonlinear NPN devices using Newton iterations.
-- **Fixed common-emitter stage:** a 7-unknown, stack-only solver optimized for the current fixed topology.
+## Real-time and validation notes
 
-Automated tests cover RLC responses, transistor current/charge Jacobians, transformer turns ratio, core hysteresis, DC bias, AC gain/phase, fixed-stage agreement with generic MNA, and operation at 44.1/48/96/192 kHz.
+- The fixed common-emitter stage uses a fixed-size Newton solve and stack arrays; it has no heap allocation or general MNA solver in its sample method.
+- The fixed transformer uses a scalar fixed-iteration solve, with separate primary and secondary winding-current state.
+- Both models are prepared outside the audio callback.
+- The plugin processes 32-bit audio; 64-bit VST3 processing is not implemented.
+- Parameter changes are currently applied at processing-block boundaries. Sample-offset-accurate automation is future work.
+- CPU cost still needs profiling on the target PC, and the magnetic parameters need physical calibration.
 
-### Build and test
+The Linux component/network test executable passes. The latest Windows x64 build, package upload, and Steinberg validator all succeeded; the validator reported **47 passed, 0 failed**.
 
-The circuit tests compile directly with a C++17 compiler on Linux. The Windows workflow builds the VST3, runs the 51 component/network tests, runs the Steinberg VST3 validator and packages the plugin as `PG-Preamp-Windows-x64.zip`.
+## Build and download
 
-The latest successful Windows build is available under Actions:
-[Build PG Preamp VST3 — successful run](https://github.com/Gastonpg/PG-Preamp/actions/runs/41570556094)
+No local compiler or SDK installation is required. Open the successful [Windows build run](https://github.com/Gastonpg/PG-Preamp/actions/runs/41575611834), then download **PG-Preamp-Windows-x64** from its Artifacts section.
 
-No local compiler or SDK installation is required for the cloud Windows build.
+See [docs/CIRCUIT_ENGINE.md](docs/CIRCUIT_ENGINE.md) for model assumptions, limitations, tests and remaining milestones.
 
-See [docs/CIRCUIT_ENGINE.md](docs/CIRCUIT_ENGINE.md) and [docs/REFERENCE_ARCHITECTURE.md](docs/REFERENCE_ARCHITECTURE.md) for model assumptions, limitations and next steps.
-
-This is an original PG Audio design, not a claim of exact emulation of commercial hardware.
+PG Preamp is an original PG Audio design.
