@@ -938,6 +938,79 @@ int main()
               << stageOneKhzGain << "x, max deviation="
               << maximumStageResponseDeviationDb << " dB\\n";
 
+    // Aliasing survey at a high vocal-band frequency and the maximum nominal
+    // A Stage drive. At 48 kHz, harmonics above Nyquist fold back into band;
+    // the 192 kHz run is a higher-rate reference for the same model/input.
+    const auto measureHighFrequencyHarmonics = [&](double sampleRate)
+    {
+        constexpr int measurementCount = 4800;
+        constexpr int discardCount = 4800;
+        FixedCommonEmitterStage spectrumStage;
+        if (!spectrumStage.prepare(
+                sampleRate,
+                PGAudio::Circuit::PgAStageProfileV1::makeStageParameters(),
+                pluginDefaultTransistor))
+        {
+            std::array<double, 5> invalid{};
+            invalid.fill(std::numeric_limits<double>::quiet_NaN());
+            return invalid;
+        }
+
+        std::array<double, measurementCount> spectrum{};
+        for (int sample = 0; sample < discardCount + measurementCount; ++sample)
+        {
+            const double input = 0.04 *
+                std::sin(2.0 * pi * 17000.0 * sample / sampleRate);
+            FixedCommonEmitterStage::ProcessResult result;
+            if (!spectrumStage.processSample(static_cast<float>(input), result))
+            {
+                std::array<double, 5> invalid{};
+                invalid.fill(std::numeric_limits<double>::quiet_NaN());
+                return invalid;
+            }
+            if (sample >= discardCount)
+                spectrum[static_cast<std::size_t>(sample - discardCount)] = result.output;
+        }
+
+        const int fundamentalBin = static_cast<int>(std::llround(
+            17000.0 * measurementCount / sampleRate));
+        std::array<double, 5> amplitudes{};
+        for (int harmonic = 1; harmonic <= 5; ++harmonic)
+        {
+            const int rawBin = (harmonic * fundamentalBin) % measurementCount;
+            const int foldedBin = std::min(rawBin, measurementCount - rawBin);
+            amplitudes[static_cast<std::size_t>(harmonic - 1)] =
+                dftAmplitude(spectrum, foldedBin);
+        }
+        return amplitudes;
+    };
+
+    const auto harmonicsAt48k = measureHighFrequencyHarmonics(48000.0);
+    const auto harmonicsAt192k = measureHighFrequencyHarmonics(192000.0);
+    double foldedHarmonicPower48k = 0.0;
+    double harmonicPower192k = 0.0;
+    for (std::size_t harmonic = 1; harmonic < harmonicsAt48k.size(); ++harmonic)
+    {
+        if (!std::isfinite(harmonicsAt48k[harmonic]) ||
+            !std::isfinite(harmonicsAt192k[harmonic]))
+            return 127;
+        foldedHarmonicPower48k +=
+            harmonicsAt48k[harmonic] * harmonicsAt48k[harmonic];
+        harmonicPower192k +=
+            harmonicsAt192k[harmonic] * harmonicsAt192k[harmonic];
+    }
+    const double aliasRatio48k = std::sqrt(foldedHarmonicPower48k) /
+                                 harmonicsAt48k[0];
+    const double nativeHarmonicRatio192k = std::sqrt(harmonicPower192k) /
+                                          harmonicsAt192k[0];
+    if (!std::isfinite(aliasRatio48k) ||
+        !std::isfinite(nativeHarmonicRatio192k))
+        return 128;
+    std::cout << "PG A Stage M1 17 kHz / 40 mV harmonics: "
+              << "48 kHz folded H2-H5=" << aliasRatio48k * 100.0
+              << "%, 192 kHz reference H2-H5="
+              << nativeHarmonicRatio192k * 100.0 << "%\\n";
+
 
     // Real-time loaded transformer: the primary is driven through a source
     // resistance, the secondary is terminated, and winding currents satisfy
