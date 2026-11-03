@@ -13,6 +13,13 @@ struct BjtTerminalCurrents
     double emitterAmps = 0.0;
 };
 
+struct BjtEvaluation
+{
+    BjtTerminalCurrents currents;
+    // d(I_terminal[row])/d(V_terminal[column]), order B, C, E.
+    double conductance[3][3]{};
+};
+
 // Static Ebers-Moll NPN junction model with SPICE-style temperature scaling
 // for transport saturation current and forward/reverse beta. Charge storage,
 // junction capacitances, Early effect and ohmic parasitics remain future work.
@@ -69,20 +76,53 @@ public:
     BjtTerminalCurrents evaluate(double baseVolts, double collectorVolts,
                                  double emitterVolts) const noexcept
     {
+        return evaluateWithDerivatives(baseVolts, collectorVolts, emitterVolts).currents;
+    }
+
+    BjtEvaluation evaluateWithDerivatives(double baseVolts, double collectorVolts,
+                                          double emitterVolts) const noexcept
+    {
+        BjtEvaluation result;
         if (!prepared_ || !std::isfinite(baseVolts) ||
             !std::isfinite(collectorVolts) || !std::isfinite(emitterVolts))
-            return {};
+            return result;
 
-        const double vbe = (baseVolts - emitterVolts) / thermalVoltage_;
-        const double vbc = (baseVolts - collectorVolts) / thermalVoltage_;
-        const double forwardJunction = saturationCurrentAmps_ * safeExpm1(vbe);
-        const double reverseJunction = saturationCurrentAmps_ * safeExpm1(vbc);
+        const double vbeNormalized = (baseVolts - emitterVolts) / thermalVoltage_;
+        const double vbcNormalized = (baseVolts - collectorVolts) / thermalVoltage_;
+        const double vbeClamped = std::clamp(vbeNormalized, -80.0, 40.0);
+        const double vbcClamped = std::clamp(vbcNormalized, -80.0, 40.0);
+        const double forwardJunction = saturationCurrentAmps_ * std::expm1(vbeClamped);
+        const double reverseJunction = saturationCurrentAmps_ * std::expm1(vbcClamped);
+        const double forwardDerivative = vbeNormalized == vbeClamped
+            ? saturationCurrentAmps_ * std::exp(vbeClamped) / thermalVoltage_ : 0.0;
+        const double reverseDerivative = vbcNormalized == vbcClamped
+            ? saturationCurrentAmps_ * std::exp(vbcClamped) / thermalVoltage_ : 0.0;
 
         const double collector = forwardJunction - reverseJunction / alphaReverse_;
         const double base = forwardJunction * (1.0 / alphaForward_ - 1.0) +
                             reverseJunction * (1.0 / alphaReverse_ - 1.0);
         const double emitter = -collector - base;
-        return {collector, base, emitter};
+        result.currents = {collector, base, emitter};
+
+        const double ibForward = 1.0 / alphaForward_ - 1.0;
+        const double ibReverse = 1.0 / alphaReverse_ - 1.0;
+
+        // Rows/columns are ordered base, collector, emitter.
+        result.conductance[0][0] = forwardDerivative * ibForward +
+                                   reverseDerivative * ibReverse;
+        result.conductance[0][1] = -reverseDerivative * ibReverse;
+        result.conductance[0][2] = -forwardDerivative * ibForward;
+
+        result.conductance[1][0] = forwardDerivative -
+                                   reverseDerivative / alphaReverse_;
+        result.conductance[1][1] = reverseDerivative / alphaReverse_;
+        result.conductance[1][2] = -forwardDerivative;
+
+        for (int column = 0; column < 3; ++column)
+            result.conductance[2][column] =
+                -result.conductance[0][column] - result.conductance[1][column];
+
+        return result;
     }
 
     double thermalVoltage() const noexcept { return thermalVoltage_; }
@@ -91,11 +131,6 @@ public:
     double saturationCurrentAmps() const noexcept { return saturationCurrentAmps_; }
 
 private:
-    static double safeExpm1(double value) noexcept
-    {
-        return std::expm1(std::clamp(value, -80.0, 40.0));
-    }
-
     double nominalSaturationCurrentAmps_ = 1.0e-14;
     double nominalForwardBeta_ = 100.0;
     double nominalReverseBeta_ = 1.0;
