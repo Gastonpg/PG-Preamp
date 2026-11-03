@@ -218,8 +218,9 @@ int main()
     }
     if (!near(rcNetwork.nodeVoltage(rcOutput), expectedRcOutput, 1.0e-8))
     {
-        std::cerr.precision(17);\n        std::cerr << "RC MNA mismatch: actual=" << rcNetwork.nodeVoltage(rcOutput)
-                  << " expected=" << expectedRcOutput << "\\n";
+        std::cerr.precision(17);
+        std::cerr << "RC MNA mismatch: actual=" << rcNetwork.nodeVoltage(rcOutput)
+                  << " expected=" << expectedRcOutput << "\n";
         return 32;
     }
 
