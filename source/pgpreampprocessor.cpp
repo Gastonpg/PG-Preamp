@@ -226,12 +226,20 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
         return kResultOk;
     }
 
+    const bool useFloat32 = data.symbolicSampleSize == Vst::kSample32;
+    const bool useFloat64 = data.symbolicSampleSize == Vst::kSample64;
+    if (!useFloat32 && !useFloat64)
+    {
+        updateParameters(data);
+        return kResultOk;
+    }
+
     auto& input = data.inputs[0];
     auto& output = data.outputs[0];
-
-    if (data.symbolicSampleSize != Vst::kSample32 ||
-        input.channelBuffers32 == nullptr ||
-        output.channelBuffers32 == nullptr)
+    if ((useFloat32 &&
+         (input.channelBuffers32 == nullptr || output.channelBuffers32 == nullptr)) ||
+        (useFloat64 &&
+         (input.channelBuffers64 == nullptr || output.channelBuffers64 == nullptr)))
     {
         updateParameters(data);
         return kResultOk;
@@ -301,105 +309,110 @@ tresult PLUGIN_API PGPreampProcessor::process(Vst::ProcessData& data)
         }
     }
 
-    for (int32 sample = 0; sample < data.numSamples; ++sample)
+    // One processing loop serves both VST3 sample formats. The circuit models
+    // retain double-precision state and arithmetic in either host mode; the
+    // float path narrows only when storing back to a 32-bit host buffer.
+    const auto processBlock = [&](auto inputBuffers, auto outputBuffers)
     {
-        // Apply all parameter points scheduled at this sample offset.
-        for (std::size_t cursorIndex = 0; cursorIndex < cursorCount; ++cursorIndex)
+        for (int32 sample = 0; sample < data.numSamples; ++sample)
         {
-            ParameterCursor& cursor = cursors[cursorIndex];
-            while (cursor.hasPoint && cursor.nextOffset <= sample)
+            // Apply every parameter point scheduled at this sample offset.
+            for (std::size_t cursorIndex = 0; cursorIndex < cursorCount; ++cursorIndex)
             {
-                applyParameter(cursor.id, cursor.nextValue);
-
-                ++cursor.nextPoint;
-                cursor.hasPoint = false;
-                while (cursor.nextPoint < cursor.pointCount)
+                ParameterCursor& cursor = cursors[cursorIndex];
+                while (cursor.hasPoint && cursor.nextOffset <= sample)
                 {
-                    if (cursor.queue->getPoint(cursor.nextPoint,
-                                                cursor.nextOffset,
-                                                cursor.nextValue) == kResultOk &&
-                        std::isfinite(cursor.nextValue))
-                    {
-                        cursor.hasPoint = true;
-                        break;
-                    }
+                    applyParameter(cursor.id, cursor.nextValue);
+
                     ++cursor.nextPoint;
+                    cursor.hasPoint = false;
+                    while (cursor.nextPoint < cursor.pointCount)
+                    {
+                        if (cursor.queue->getPoint(cursor.nextPoint,
+                                                   cursor.nextOffset,
+                                                   cursor.nextValue) == kResultOk &&
+                            std::isfinite(cursor.nextValue))
+                        {
+                            cursor.hasPoint = true;
+                            break;
+                        }
+                        ++cursor.nextPoint;
+                    }
                 }
             }
-        }
 
-        const double targetIronMix = ironEnabled_ && transformersReady_ ? 1.0 : 0.0;
-        const double targetAStageMix = aStageEnabled_ && stagesReady_ ? 1.0 : 0.0;
-        const double targetBypassMix = bypass_ ? 1.0 : 0.0;
-        ironMix_ += mixSmoothingCoefficient_ * (targetIronMix - ironMix_);
-        aStageMix_ += mixSmoothingCoefficient_ * (targetAStageMix - aStageMix_);
-        bypassMix_ += mixSmoothingCoefficient_ * (targetBypassMix - bypassMix_);
-        inputGainCurrentLinear_ += mixSmoothingCoefficient_ *
-            (inputGainTargetLinear_ - inputGainCurrentLinear_);
-        outputGainCurrentLinear_ += mixSmoothingCoefficient_ *
-            (outputGainTargetLinear_ - outputGainCurrentLinear_);
+            const double targetIronMix =
+                ironEnabled_ && transformersReady_ ? 1.0 : 0.0;
+            const double targetAStageMix =
+                aStageEnabled_ && stagesReady_ ? 1.0 : 0.0;
+            const double targetBypassMix = bypass_ ? 1.0 : 0.0;
+            ironMix_ += mixSmoothingCoefficient_ * (targetIronMix - ironMix_);
+            aStageMix_ += mixSmoothingCoefficient_ * (targetAStageMix - aStageMix_);
+            bypassMix_ += mixSmoothingCoefficient_ * (targetBypassMix - bypassMix_);
+            inputGainCurrentLinear_ += mixSmoothingCoefficient_ *
+                (inputGainTargetLinear_ - inputGainCurrentLinear_);
+            outputGainCurrentLinear_ += mixSmoothingCoefficient_ *
+                (outputGainTargetLinear_ - outputGainCurrentLinear_);
 
-        for (int32 channel = 0; channel < channels && channel < 2; ++channel)
-        {
-            const float* source = input.channelBuffers32[channel];
-            float* destination = output.channelBuffers32[channel];
-            if (source == nullptr || destination == nullptr)
-                continue;
-
-            auto& stage = stages_[static_cast<std::size_t>(channel)];
-            auto& transformer = transformers_[static_cast<std::size_t>(channel)];
-            const float sourceSample = source[sample];
-
-            // The 10468-style transformer sits before the preamp gain control.
-            // It runs continuously so engaging Iron cannot start from a cold
-            // magnetic state. The off path is level-matched to the measured
-            // small-signal transformer ratio.
-            const float transformerInput =
-                sourceSample * static_cast<float>(kInputVoltsPerFullScale);
-            float transformerWet = transformerInput;
-            if (transformersReady_)
+            for (int32 channel = 0; channel < channels && channel < 2; ++channel)
             {
-                PGAudio::Circuit::FixedMagneticTransformerStage::ProcessResult
-                    transformerResult;
-                if (transformer.processSample(transformerInput, transformerResult))
-                    transformerWet = static_cast<float>(
-                        transformerResult.outputVolts / kIronReferenceGain);
+                const auto* source = inputBuffers[channel];
+                auto* destination = outputBuffers[channel];
+                if (source == nullptr || destination == nullptr)
+                    continue;
+
+                auto& stage = stages_[static_cast<std::size_t>(channel)];
+                auto& transformer = transformers_[static_cast<std::size_t>(channel)];
+                const double sourceSample = static_cast<double>(source[sample]);
+
+                // The input transformer precedes the preamp gain control.
+                // Keep its state warm while its audible blend is disabled.
+                const double transformerInput =
+                    sourceSample * kInputVoltsPerFullScale;
+                double transformerWet = transformerInput;
+                if (transformersReady_)
+                {
+                    PGAudio::Circuit::FixedMagneticTransformerStage::ProcessResult
+                        transformerResult;
+                    if (transformer.processSample(transformerInput, transformerResult))
+                        transformerWet =
+                            transformerResult.outputVolts / kIronReferenceGain;
+                }
+                const double ironOutput = transformerInput +
+                    (transformerWet - transformerInput) * ironMix_;
+
+                // Input gain follows Iron, matching the current PG signal order.
+                const double stageInput =
+                    ironOutput * inputGainCurrentLinear_;
+
+                // Keep A Stage warm while bypassed. Its dry reference preserves
+                // measured small-signal gain and common-emitter polarity.
+                double stageWet = stageInput;
+                if (stagesReady_)
+                {
+                    PGAudio::Circuit::FixedCommonEmitterStage::ProcessResult stageResult;
+                    if (stage.processSample(stageInput, stageResult))
+                        stageWet = stageResult.output;
+                }
+                const double stageDry = -stageInput *
+                    (stagesReady_ ? kAStageReferenceGain : 1.0);
+                const double stageOutput = stageDry +
+                    (stageWet - stageDry) * aStageMix_;
+
+                const double processedSample = stageOutput *
+                    (kOutputFullScalePerVolt * outputGainCurrentLinear_);
+                const double finalSample = processedSample +
+                    (sourceSample - processedSample) * bypassMix_;
+                destination[sample] = std::isfinite(finalSample)
+                    ? finalSample : source[sample];
             }
-            const float ironOutput = transformerInput +
-                (transformerWet - transformerInput) * static_cast<float>(ironMix_);
-
-            // Input gain follows the input transformer, matching the basic
-            // 1073 gain-staging order more closely than driving the transformer
-            // with the gain knob itself.
-            const float stageInput =
-                ironOutput * static_cast<float>(inputGainCurrentLinear_);
-
-            // Keep A Stage warm while bypassed. Its dry path uses the measured
-            // small-signal gain as makeup so toggling the colour block does not
-            // cause the 12.3 dB level drop observed in the first audition.
-            float stageWet = stageInput;
-            if (stagesReady_)
-            {
-                PGAudio::Circuit::FixedCommonEmitterStage::ProcessResult stageResult;
-                if (stage.processSample(stageInput, stageResult))
-                    stageWet = stageResult.output;
-            }
-            // The common-emitter stage is inverting. Keep the matched dry
-            // reference at the same polarity so crossfading A Stage cannot
-            // create phase cancellation or a level dip.
-            const float stageDry = -stageInput *
-                static_cast<float>(stagesReady_ ? kAStageReferenceGain : 1.0);
-            const float stageOutput = stageDry +
-                (stageWet - stageDry) * static_cast<float>(aStageMix_);
-
-            const float processedSample = stageOutput *
-                static_cast<float>(kOutputFullScalePerVolt * outputGainCurrentLinear_);
-            const float finalSample = processedSample +
-                (sourceSample - processedSample) * static_cast<float>(bypassMix_);
-            destination[sample] = std::isfinite(finalSample)
-                ? finalSample : sourceSample;
         }
-    }
+    };
+
+    if (useFloat32)
+        processBlock(input.channelBuffers32, output.channelBuffers32);
+    else
+        processBlock(input.channelBuffers64, output.channelBuffers64);
 
     output.silenceFlags = 0;
     return kResultOk;
