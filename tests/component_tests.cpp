@@ -5,6 +5,7 @@
 #include "circuit/pg_bjt_ebers_moll.h"
 #include "circuit/pg_mna_solver.h"
 #include "circuit/pg_preisach_core.h"
+#include "circuit/pg_magnetic_transformer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,6 +29,7 @@ int main()
     using PGAudio::Circuit::EbersMollNpn;
     using PGAudio::Circuit::BjtAdvancedParameters;
     using PGAudio::Circuit::PreisachCore;
+    using PGAudio::Circuit::MagneticTransformer;
     using PGAudio::Circuit::MnaCircuit;
 
     RcStage rc;
@@ -524,6 +526,61 @@ int main()
     }
     if (!(inputOutputCorrelation < 0.0))
         return 44;
+
+    // Current-driven nonlinear transformer. In the unswitched low-field
+    // region, Faraday's law must preserve the turns-voltage ratio.
+    MagneticTransformer<256> linearCoreTransformer;
+    if (!linearCoreTransformer.prepare(1.2, 1.0e-4, 0.08,
+                                       100.0, 10.0, 0.0, 0.0,
+                                       0.0, 0.0, 0.0))
+        return 62;
+    if (linearCoreTransformer.configureCoreDomains(1000.0, 2000.0, 128) != 128)
+        return 63;
+
+    typename MagneticTransformer<256>::Sample transformerSample;
+    for (int sample = 0; sample < 480; ++sample)
+    {
+        const double primaryCurrent = 0.01 * (sample + 1) / 480.0;
+        transformerSample =
+            linearCoreTransformer.processCurrents(primaryCurrent, 0.0, solverDt);
+    }
+    if (!(std::abs(transformerSample.primaryVoltage) > 1.0e-9))
+        return 64;
+    if (!near(transformerSample.secondaryVoltage /
+              transformerSample.primaryVoltage, 0.1, 1.0e-10))
+        return 65;
+    if (!near(transformerSample.secondaryFluxLinkageWebers /
+              transformerSample.primaryFluxLinkageWebers, 0.1, 1.0e-12))
+        return 66;
+
+    // A higher magnetizing current drives the domain ensemble toward
+    // saturation, then a reverse cycle leaves remanent core flux.
+    MagneticTransformer<256> saturatedTransformer;
+    if (!saturatedTransformer.prepare(1.2, 1.0e-4, 0.08,
+                                       500.0, 50.0, 2.0, 0.5,
+                                       1.0e-3, 1.0e-5, 2.0e-4))
+        return 67;
+    if (saturatedTransformer.configureCoreDomains(20.0, 400.0, 256) != 256)
+        return 68;
+    auto nonlinearTransformerSample =
+        saturatedTransformer.processCurrents(0.5, 0.0, solverDt);
+    if (!(nonlinearTransformerSample.coreFluxDensityTesla > 1.0))
+        return 69;
+    for (int sample = 0; sample < 480; ++sample)
+    {
+        const double current = -0.5 * (sample + 1) / 480.0;
+        nonlinearTransformerSample =
+            saturatedTransformer.processCurrents(current, 0.0, solverDt);
+        if (!std::isfinite(nonlinearTransformerSample.primaryVoltage) ||
+            !std::isfinite(nonlinearTransformerSample.secondaryVoltage) ||
+            !std::isfinite(nonlinearTransformerSample.coreLossPowerEstimateWatts) ||
+            nonlinearTransformerSample.coreLossPowerEstimateWatts < 0.0)
+            return 70;
+    }
+    nonlinearTransformerSample =
+        saturatedTransformer.processCurrents(0.0, 0.0, solverDt);
+    if (!(std::abs(nonlinearTransformerSample.coreFluxDensityTesla) > 0.5))
+        return 71;
 
     std::cout << "PG Circuit Engine: R, L, C, NPN, coupled windings, MNA and common-emitter audio-stage tests passed.\n";
     return 0;
