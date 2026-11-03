@@ -24,18 +24,20 @@ public:
         double saturationFluxDensityTesla = 0.8;
         double coreAreaSquareMeters = 1.0e-4;
         double magneticPathLengthMeters = 0.08;
-        double relativePermeability = 4000.0;
-        double coerciveFieldAmpsPerMeter = 0.001;
-        double magneticRelaxationSeconds = 50.0e-6;
+        double relativePermeability = 16000.0;
+        double coerciveFieldAmpsPerMeter = 1.0e-6;
+        double magneticRelaxationSeconds = 1.0e-6;
+        double branchMemoryRelaxationSeconds = 1.0e-3;
+        double branchTransitionFieldAmpsPerMeter = 1.0e-5;
 
-        double primaryTurns = 1200.0;
-        double secondaryTurns = 1200.0;
-        double sourceResistanceOhms = 600.0;
-        double primaryWindingResistanceOhms = 80.0;
-        double secondaryWindingResistanceOhms = 60.0;
-        double primaryLeakageInductanceHenries = 1.0e-3;
-        double secondaryLeakageInductanceHenries = 1.0e-3;
-        double loadResistanceOhms = 15000.0;
+        double primaryTurns = 1000.0;
+        double secondaryTurns = 2000.0;
+        double sourceResistanceOhms = 150.0;
+        double primaryWindingResistanceOhms = 12.0;
+        double secondaryWindingResistanceOhms = 65.0;
+        double primaryLeakageInductanceHenries = 1.0e-5;
+        double secondaryLeakageInductanceHenries = 1.0e-5;
+        double loadResistanceOhms = 1200.0;
 
         unsigned maximumNewtonIterations = 10;
         double residualToleranceVolts = 1.0e-9;
@@ -65,6 +67,8 @@ public:
             parameters.relativePermeability <= 1.0 ||
             !validNonNegative(parameters.coerciveFieldAmpsPerMeter) ||
             !validNonNegative(parameters.magneticRelaxationSeconds) ||
+            !validNonNegative(parameters.branchMemoryRelaxationSeconds) ||
+            !validPositive(parameters.branchTransitionFieldAmpsPerMeter) ||
             !validPositive(parameters.primaryTurns) ||
             !validPositive(parameters.secondaryTurns) ||
             !validPositive(parameters.sourceResistanceOhms) ||
@@ -210,7 +214,7 @@ private:
     {
         double magnetization = 0.0;
         double fieldAmpsPerMeter = 0.0;
-        int branchDirection = 0;
+        double branchMemory = 0.0;
     };
 
     struct Evaluation
@@ -245,15 +249,20 @@ private:
 
         CoreState next = core_;
         const double fieldDelta = field - core_.fieldAmpsPerMeter;
-        if (fieldDelta > 1.0e-12)
-            next.branchDirection = 1;
-        else if (fieldDelta < -1.0e-12)
-            next.branchDirection = -1;
+        const double branchTarget = std::tanh(
+            fieldDelta / parameters_.branchTransitionFieldAmpsPerMeter);
+        const double branchRelaxation = parameters_.branchMemoryRelaxationSeconds > 0.0
+            ? timeStep_ / (parameters_.branchMemoryRelaxationSeconds + timeStep_)
+            : 1.0;
+        next.branchMemory += branchRelaxation * (branchTarget - next.branchMemory);
+        const double branchTargetSlope =
+            (1.0 - branchTarget * branchTarget) /
+            parameters_.branchTransitionFieldAmpsPerMeter;
+        const double branchMemorySlope = branchRelaxation * branchTargetSlope;
 
-        const double branchOffset =
-            static_cast<double>(next.branchDirection) *
-            parameters_.coerciveFieldAmpsPerMeter;
-        const double normalizedField = (field - branchOffset) / magneticKneeField_;
+        const double normalizedField =
+            (field - parameters_.coerciveFieldAmpsPerMeter * next.branchMemory) /
+            magneticKneeField_;
         const double targetMagnetization = std::tanh(normalizedField);
         const double relaxation = parameters_.magneticRelaxationSeconds > 0.0
             ? timeStep_ / (parameters_.magneticRelaxationSeconds + timeStep_)
@@ -264,13 +273,15 @@ private:
 
         const double sechSquared =
             std::max(0.0, 1.0 - targetMagnetization * targetMagnetization);
+        const double magnetizationSlope = sechSquared *
+            (1.0 - parameters_.coerciveFieldAmpsPerMeter * branchMemorySlope) /
+            magneticKneeField_;
         const double fluxDensity =
             PreisachVacuumPermeability * field +
             parameters_.saturationFluxDensityTesla * next.magnetization;
         const double fluxDensityDerivative =
             PreisachVacuumPermeability +
-            parameters_.saturationFluxDensityTesla * relaxation *
-            sechSquared / magneticKneeField_;
+            parameters_.saturationFluxDensityTesla * relaxation * magnetizationSlope;
         const double deltaFluxDensity = fluxDensity - previousFluxDensityTesla_;
 
         const double primaryCoreVoltage =
